@@ -89,7 +89,7 @@ class QuestDBClient:
             INSERT INTO ticks_ltp (timestamp, symbol, ltp)
             VALUES (%s, %s, %s)
             """
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now()  # Use local time (IST)
             self.cursor.execute(query, (timestamp, symbol, ltp))
             self.connection.commit()
             return True
@@ -107,7 +107,7 @@ class QuestDBClient:
             INSERT INTO ticks_quote (timestamp, symbol, bid, ask, spread, volume, open_interest)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now()  # Use local time (IST)
             self.cursor.execute(query, (timestamp, symbol, bid, ask, spread, volume, open_interest))
             self.connection.commit()
             return True
@@ -125,7 +125,7 @@ class QuestDBClient:
             INSERT INTO ticks_depth (timestamp, symbol, level, bid, ask, bid_qty, ask_qty)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now()  # Use local time (IST)
             self.cursor.execute(query, (timestamp, symbol, level, bid, ask, bid_qty, ask_qty))
             self.connection.commit()
             return True
@@ -143,7 +143,7 @@ class QuestDBClient:
             INSERT INTO ticks_ltp (timestamp, symbol, ltp)
             VALUES %s
             """
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now()  # Use local time (IST)
             values = [(timestamp, item['symbol'], item['ltp']) for item in data]
             execute_values(self.cursor, query, values)
             self.connection.commit()

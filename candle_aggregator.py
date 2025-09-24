@@ -96,7 +96,7 @@ class CandleAggregator:
         """Get current candle for symbol and timeframe"""
         try:
             # Calculate time window for current candle
-            now = datetime.utcnow()
+            now = datetime.now()  # Use local time
 
             if timeframe == '1m':
                 start_time = now.replace(second=0, microsecond=0)
@@ -164,15 +164,15 @@ class CandleAggregator:
 
             # Calculate start time based on limit and timeframe
             if timeframe == '1m':
-                start_time = datetime.utcnow() - timedelta(minutes=limit)
+                start_time = datetime.now() - timedelta(minutes=limit)
             elif timeframe == '5m':
-                start_time = datetime.utcnow() - timedelta(minutes=limit * 5)
+                start_time = datetime.now() - timedelta(minutes=limit * 5)
             elif timeframe == '15m':
-                start_time = datetime.utcnow() - timedelta(minutes=limit * 15)
+                start_time = datetime.now() - timedelta(minutes=limit * 15)
             elif timeframe == '1h':
-                start_time = datetime.utcnow() - timedelta(hours=limit)
+                start_time = datetime.now() - timedelta(hours=limit)
             else:
-                start_time = datetime.utcnow() - timedelta(days=1)
+                start_time = datetime.now() - timedelta(days=1)
 
             # Get the most recent data from QuestDB
             # Use a subquery to get the latest ticks first
@@ -217,6 +217,7 @@ class CandleAggregator:
 
                 for row in results:
                     if row[0] and row[1]:
+                        # The timestamp is already correct - Python's timestamp() gives UTC
                         timestamp = int(row[0].timestamp())
                         bucket = (timestamp // bucket_seconds) * bucket_seconds
                         candle_dict[bucket].append((timestamp, float(row[1])))

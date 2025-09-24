@@ -207,6 +207,17 @@
                     timeVisible: true,
                     secondsVisible: false
                 },
+                localization: {
+                    timeFormatter: (businessDayOrTimestamp) => {
+                        // TradingView gives us UTC timestamps
+                        // We need to add 5.5 hours (19800 seconds) to display as IST
+                        const istTimestamp = (businessDayOrTimestamp + 19800) * 1000;
+                        const date = new Date(istTimestamp);
+                        const hours = date.getUTCHours().toString().padStart(2, '0');
+                        const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+                        return `${hours}:${minutes}`;
+                    }
+                },
                 watermark: {
                     color: 'rgba(16, 185, 129, 0.1)',
                     visible: true,
@@ -415,7 +426,10 @@
                     // Update metrics with the latest candle
                     const latestCandle = data.candles[data.candles.length - 1];
                     updateMetrics(latestCandle);
-                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('en-IN', {
+                        timeZone: 'Asia/Kolkata',
+                        hour12: true
+                    });
                 }
             } catch (error) {
                 console.error('Failed to load latest candle:', error);
@@ -447,7 +461,10 @@
 
             lastCandle = candle;
             updateMetrics(candle);
-            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                hour12: true
+            });
         }
 
         // Get time for timeframe
