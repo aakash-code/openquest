@@ -181,11 +181,12 @@ class CandleAggregator:
             FROM ticks_ltp
             WHERE symbol = %s
                 AND timestamp >= %s
-            ORDER BY timestamp DESC
+                AND ltp IS NOT NULL
+            ORDER BY timestamp ASC
             LIMIT %s
             """
 
-            self.questdb.cursor.execute(query, (symbol, start_time, limit * 10))  # Get more ticks to aggregate
+            self.questdb.cursor.execute(query, (symbol, start_time, limit * 100))  # Get more ticks to aggregate
             results = self.questdb.cursor.fetchall()
 
             # Aggregate ticks into candles manually
@@ -213,13 +214,16 @@ class CandleAggregator:
                     if row[0] and row[1]:
                         timestamp = int(row[0].timestamp())
                         bucket = (timestamp // bucket_seconds) * bucket_seconds
-                        candle_dict[bucket].append(float(row[1]))
+                        candle_dict[bucket].append((timestamp, float(row[1])))
 
                 # Create candles from grouped ticks
                 candles = []
                 for bucket_time in sorted(candle_dict.keys()):
-                    prices = candle_dict[bucket_time]
-                    if prices:
+                    tick_data = candle_dict[bucket_time]
+                    if tick_data:
+                        # Sort ticks within bucket by timestamp
+                        tick_data.sort(key=lambda x: x[0])
+                        prices = [price for _, price in tick_data]
                         candles.append({
                             'time': bucket_time,
                             'open': prices[0],

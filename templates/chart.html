@@ -370,24 +370,37 @@
             document.getElementById('connection-status').className = 'badge badge-success';
             document.getElementById('connection-status').textContent = 'Connected';
 
-            // Poll for updates every 5 seconds
+            // Poll for updates every 2 seconds for 1m, longer for other timeframes
             setInterval(() => {
                 if (currentSymbol && streamingEnabled) {
-                    // Reload just the last candle
                     loadLatestCandle(currentSymbol, currentTimeframe);
                 }
-            }, 5000);
+            }, currentTimeframe === '1m' ? 2000 : 10000);
         }
 
         // Load latest candle data
         async function loadLatestCandle(symbol, timeframe) {
             try {
-                const response = await fetch(`/api/candles/${symbol}?timeframe=${timeframe}&limit=1`);
+                const response = await fetch(`/api/candles/${symbol}?timeframe=${timeframe}&limit=100`);
                 const data = await response.json();
 
                 if (data.status === 'success' && data.candles && data.candles.length > 0) {
-                    const candle = data.candles[0];
-                    updateCandleFromQuestDB(candle);
+                    // Get the last few candles and update them
+                    const candles = data.candles.slice(-10);  // Last 10 candles
+                    candles.forEach(candle => {
+                        currentSeries.update({
+                            time: candle.time,
+                            open: candle.open,
+                            high: candle.high,
+                            low: candle.low,
+                            close: candle.close
+                        });
+                    });
+
+                    // Update metrics with the latest candle
+                    const latestCandle = candles[candles.length - 1];
+                    updateMetrics(latestCandle);
+                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
                 }
             } catch (error) {
                 console.error('Failed to load latest candle:', error);
