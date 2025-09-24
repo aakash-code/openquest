@@ -3,7 +3,9 @@
     "allow": [
       "Bash(python:*)",
       "Bash(echo:*)",
-      "WebFetch(domain:tradingview.github.io)"
+      "WebFetch(domain:tradingview.github.io)",
+      "Bash(dir:*)",
+      "Bash(del run.py websocket_client.py quiet_runner.py)"
     ],
     "deny": [],
     "ask": []
