@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="supabass">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenQuest - Real-Time Data Aggregation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.2/dist/full.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #10b981;
+            --primary-focus: #059669;
+            --secondary: #000000;
+            --accent: #10b981;
+            --neutral: #1a1a1a;
+            --base-100: #000000;
+            --base-200: #0a0a0a;
+            --base-300: #141414;
+        }
+
+        [data-theme="supabass"] {
+            --p: 158 60% 43%;
+            --pf: 158 60% 33%;
+            --s: 0 0% 0%;
+            --a: 158 60% 43%;
+            --n: 0 0% 10%;
+            --b1: 0 0% 0%;
+            --b2: 0 0% 4%;
+            --b3: 0 0% 8%;
+            --bc: 158 60% 90%;
+            --sc: 158 60% 90%;
+            --ac: 0 0% 0%;
+            --nc: 158 60% 90%;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #0a0a0a 0%, #141414 100%);
+            border: 1px solid #10b981;
+        }
+
+        .pulse-green {
+            animation: pulse-green 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse-green {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="bg-base-100 text-green-400">
+    <div class="container mx-auto p-4">
+        <!-- Header -->
+        <div class="navbar bg-base-200 rounded-lg mb-6 shadow-xl border border-green-900">
+            <div class="flex-1">
+                <h1 class="text-3xl font-bold text-green-400">OpenQuest</h1>
+                <span class="ml-4 text-sm text-green-600">Real-Time Data Aggregation for OpenAlgo</span>
+            </div>
+            <div class="flex-none">
+                <div id="connection-status" class="badge badge-error">Disconnected</div>
+            </div>
+        </div>
+
+        <!-- Configuration Section -->
+        <div class="card bg-base-200 shadow-xl mb-6 border border-green-900">
+            <div class="card-body">
+                <h2 class="card-title text-green-400 mb-4">Configuration</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text text-green-400">API Key</span>
+                        </label>
+                        <input type="password" id="api-key" placeholder="Enter OpenAlgo API Key"
+                               class="input input-bordered bg-base-300 border-green-700 text-green-300 focus:border-green-500" />
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text text-green-400">REST API Host</span>
+                        </label>
+                        <input type="text" id="rest-host" value="http://127.0.0.1:5000"
+                               class="input input-bordered bg-base-300 border-green-700 text-green-300" />
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text text-green-400">WebSocket URL</span>
+                        </label>
+                        <input type="text" id="ws-url" value="ws://127.0.0.1:8765"
+                               class="input input-bordered bg-base-300 border-green-700 text-green-300" />
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text text-green-400">QuestDB Host</span>
+                        </label>
+                        <input type="text" id="questdb-host" value="http://127.0.0.1:9000"
+                               class="input input-bordered bg-base-300 border-green-700 text-green-300" />
+                    </div>
+                </div>
+
+                <div class="flex gap-4 mt-4">
+                    <label class="label cursor-pointer">
+                        <input type="checkbox" id="ltp-enabled" class="checkbox checkbox-success mr-2" checked />
+                        <span class="label-text text-green-400">LTP Stream</span>
+                    </label>
+                    <label class="label cursor-pointer">
+                        <input type="checkbox" id="quote-enabled" class="checkbox checkbox-success mr-2" checked />
+                        <span class="label-text text-green-400">Quote Stream</span>
+                    </label>
+                    <label class="label cursor-pointer">
+                        <input type="checkbox" id="depth-enabled" class="checkbox checkbox-success mr-2" />
+                        <span class="label-text text-green-400">Depth Stream</span>
+                    </label>
+                </div>
+
+                <div class="card-actions justify-end mt-4">
+                    <button id="save-config" class="btn btn-success">Save Configuration</button>
+                    <button id="start-stream" class="btn btn-primary">Start Streaming</button>
+                    <button id="stop-stream" class="btn btn-error" disabled>Stop Streaming</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metrics Dashboard -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="metric-card card shadow-xl">
+                <div class="card-body">
+                    <h3 class="text-sm text-green-600">Total Ticks</h3>
+                    <div class="text-2xl font-bold text-green-400" id="total-ticks">0</div>
+                </div>
+            </div>
+
+            <div class="metric-card card shadow-xl">
+                <div class="card-body">
+                    <h3 class="text-sm text-green-600">Active Symbols</h3>
+                    <div class="text-2xl font-bold text-green-400" id="active-symbols">0</div>
+                </div>
+            </div>
+
+            <div class="metric-card card shadow-xl">
+                <div class="card-body">
+                    <h3 class="text-sm text-green-600">Tick Rate/sec</h3>
+                    <div class="text-2xl font-bold text-green-400" id="tick-rate">0</div>
+                </div>
+            </div>
+
+            <div class="metric-card card shadow-xl">
+                <div class="card-body">
+                    <h3 class="text-sm text-green-600">Avg Spread</h3>
+                    <div class="text-2xl font-bold text-green-400" id="avg-spread">0.00</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Symbol Table -->
+        <div class="card bg-base-200 shadow-xl border border-green-900">
+            <div class="card-body">
+                <h2 class="card-title text-green-400 mb-4">MCX Futures Symbols</h2>
+
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra">
+                        <thead>
+                            <tr>
+                                <th class="text-green-400">Symbol</th>
+                                <th class="text-green-400">Last Update</th>
+                                <th class="text-green-400">Tick Count</th>
+                                <th class="text-green-400">Spread</th>
+                                <th class="text-green-400">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="symbol-table">
+                            <!-- Dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let metricsInterval = null;
+        let tickRateCalculator = {};
+
+        // Load saved configuration
+        const savedConfig = localStorage.getItem('openquest-config');
+        if (savedConfig) {
+            const config = JSON.parse(savedConfig);
+            document.getElementById('api-key').value = config.api_key || '';
+            document.getElementById('rest-host').value = config.rest_host || 'http://127.0.0.1:5000';
+            document.getElementById('ws-url').value = config.ws_url || 'ws://127.0.0.1:8765';
+            document.getElementById('questdb-host').value = config.questdb_host || 'http://127.0.0.1:9000';
+            document.getElementById('ltp-enabled').checked = config.ltp_enabled !== false;
+            document.getElementById('quote-enabled').checked = config.quote_enabled !== false;
+            document.getElementById('depth-enabled').checked = config.depth_enabled === true;
+        }
+
+        // Save configuration
+        document.getElementById('save-config').addEventListener('click', async () => {
+            const config = {
+                api_key: document.getElementById('api-key').value,
+                rest_host: document.getElementById('rest-host').value,
+                ws_url: document.getElementById('ws-url').value,
+                questdb_host: document.getElementById('questdb-host').value,
+                ltp_enabled: document.getElementById('ltp-enabled').checked,
+                quote_enabled: document.getElementById('quote-enabled').checked,
+                depth_enabled: document.getElementById('depth-enabled').checked
+            };
+
+            localStorage.setItem('openquest-config', JSON.stringify(config));
+
+            try {
+                const response = await fetch('/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+
+                if (response.ok) {
+                    showNotification('Configuration saved successfully', 'success');
+                } else {
+                    showNotification('Failed to save configuration', 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving configuration: ' + error.message, 'error');
+            }
+        });
+
+        // Start streaming
+        document.getElementById('start-stream').addEventListener('click', async () => {
+            const streams = [];
+            if (document.getElementById('ltp-enabled').checked) streams.push('ltp');
+            if (document.getElementById('quote-enabled').checked) streams.push('quote');
+            if (document.getElementById('depth-enabled').checked) streams.push('depth');
+
+            if (streams.length === 0) {
+                showNotification('Please enable at least one stream', 'warning');
+                return;
+            }
+
+            try {
+                for (const stream of streams) {
+                    await fetch('/start_stream', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ stream_type: stream })
+                    });
+                }
+
+                document.getElementById('start-stream').disabled = true;
+                document.getElementById('stop-stream').disabled = false;
+                document.getElementById('connection-status').className = 'badge badge-success pulse-green';
+                document.getElementById('connection-status').textContent = 'Connected';
+
+                startMetricsUpdate();
+                showNotification('Streaming started', 'success');
+            } catch (error) {
+                showNotification('Failed to start streaming: ' + error.message, 'error');
+            }
+        });
+
+        // Stop streaming
+        document.getElementById('stop-stream').addEventListener('click', async () => {
+            try {
+                await fetch('/stop_stream', { method: 'POST' });
+
+                document.getElementById('start-stream').disabled = false;
+                document.getElementById('stop-stream').disabled = true;
+                document.getElementById('connection-status').className = 'badge badge-error';
+                document.getElementById('connection-status').textContent = 'Disconnected';
+
+                stopMetricsUpdate();
+                showNotification('Streaming stopped', 'info');
+            } catch (error) {
+                showNotification('Failed to stop streaming: ' + error.message, 'error');
+            }
+        });
+
+        // Update metrics
+        async function updateMetrics() {
+            try {
+                const response = await fetch('/metrics');
+                const metrics = await response.json();
+
+                document.getElementById('total-ticks').textContent = metrics.total_ticks || 0;
+                document.getElementById('active-symbols').textContent = metrics.active_symbols || 0;
+
+                // Calculate tick rate
+                let totalTickRate = 0;
+                for (const symbol in metrics.tick_rate) {
+                    if (!tickRateCalculator[symbol]) {
+                        tickRateCalculator[symbol] = { prev: 0, rate: 0 };
+                    }
+                    const diff = metrics.tick_rate[symbol] - tickRateCalculator[symbol].prev;
+                    tickRateCalculator[symbol].rate = diff;
+                    tickRateCalculator[symbol].prev = metrics.tick_rate[symbol];
+                    totalTickRate += tickRateCalculator[symbol].rate;
+                }
+                document.getElementById('tick-rate').textContent = totalTickRate;
+
+                // Calculate average spread
+                const spreads = Object.values(metrics.spreads || {});
+                const avgSpread = spreads.length > 0
+                    ? (spreads.reduce((a, b) => a + b, 0) / spreads.length).toFixed(4)
+                    : '0.00';
+                document.getElementById('avg-spread').textContent = avgSpread;
+
+                // Update symbol table
+                updateSymbolTable(metrics);
+            } catch (error) {
+                console.error('Failed to update metrics:', error);
+            }
+        }
+
+        function updateSymbolTable(metrics) {
+            const symbols = {{ symbols | tojson }};
+            const tbody = document.getElementById('symbol-table');
+            tbody.innerHTML = '';
+
+            symbols.forEach(item => {
+                const symbol = item.symbol;
+                const row = document.createElement('tr');
+
+                const lastUpdate = metrics.last_update && metrics.last_update[symbol]
+                    ? new Date(metrics.last_update[symbol]).toLocaleTimeString()
+                    : 'Never';
+
+                const tickCount = metrics.tick_rate && metrics.tick_rate[symbol] || 0;
+                const spread = metrics.spreads && metrics.spreads[symbol]
+                    ? metrics.spreads[symbol].toFixed(4)
+                    : '-';
+
+                const status = metrics.last_update && metrics.last_update[symbol]
+                    ? '<span class="badge badge-success">Active</span>'
+                    : '<span class="badge badge-ghost">Inactive</span>';
+
+                row.innerHTML = `
+                    <td class="text-green-400">${symbol}</td>
+                    <td class="text-green-600">${lastUpdate}</td>
+                    <td class="text-green-600">${tickCount}</td>
+                    <td class="text-green-600">${spread}</td>
+                    <td>${status}</td>
+                `;
+
+                tbody.appendChild(row);
+            });
+        }
+
+        function startMetricsUpdate() {
+            updateMetrics();
+            metricsInterval = setInterval(updateMetrics, 1000);
+        }
+
+        function stopMetricsUpdate() {
+            if (metricsInterval) {
+                clearInterval(metricsInterval);
+                metricsInterval = null;
+            }
+        }
+
+        function showNotification(message, type) {
+            const alertClass = type === 'success' ? 'alert-success'
+                            : type === 'error' ? 'alert-error'
+                            : type === 'warning' ? 'alert-warning'
+                            : 'alert-info';
+
+            const alert = document.createElement('div');
+            alert.className = `alert ${alertClass} fixed top-4 right-4 w-96 z-50 shadow-lg`;
+            alert.innerHTML = `
+                <span>${message}</span>
+            `;
+
+            document.body.appendChild(alert);
+
+            setTimeout(() => {
+                alert.remove();
+            }, 3000);
+        }
+
+        // Initial metrics update
+        updateMetrics();
+    </script>
+</body>
+</html>
