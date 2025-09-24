@@ -257,15 +257,19 @@ def get_candles(symbol):
             app.logger.info(f"No aggregated candles for {symbol}, fetching raw ticks")
 
             # Get raw ticks from QuestDB
-            query = """
-            SELECT timestamp, ltp
-            FROM ticks_ltp
-            WHERE symbol = %s
-            ORDER BY timestamp DESC
-            LIMIT %s
-            """
-            questdb_client.cursor.execute(query, (symbol, limit))
-            ticks = questdb_client.cursor.fetchall()
+            try:
+                query = """
+                SELECT timestamp, ltp
+                FROM ticks_ltp
+                WHERE symbol = %s
+                ORDER BY timestamp DESC
+                LIMIT %s
+                """
+                questdb_client.cursor.execute(query, (symbol, limit))
+                ticks = questdb_client.cursor.fetchall()
+            except Exception as e:
+                app.logger.error(f"Query error: {e}")
+                ticks = []
 
             if ticks:
                 # Convert ticks to simple candles

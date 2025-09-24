@@ -66,14 +66,35 @@ class OpenAlgoStreamClient:
     def on_ltp_update(self, data):
         """Process LTP updates"""
         try:
+            # Handle nested data structure from WebSocket
+            # Format: {"type": "market_data", "mode": 1, "data": {"ltp": 1424.0}}
+            if isinstance(data, dict):
+                # Check if data is nested
+                if 'data' in data and isinstance(data['data'], dict):
+                    ltp_value = data['data'].get('ltp')
+                    symbol = data.get('symbol') or data['data'].get('symbol')
+                    exchange = data.get('exchange') or data['data'].get('exchange')
+                else:
+                    # Fallback to direct access
+                    ltp_value = data.get('ltp') or data.get('last_price') or data.get('price') or data.get('close')
+                    symbol = data.get('symbol')
+                    exchange = data.get('exchange')
+            else:
+                ltp_value = None
+                symbol = None
+                exchange = None
+
             processed_data = {
                 'type': 'ltp',
-                'symbol': data.get('symbol'),
-                'exchange': data.get('exchange'),
-                'ltp': data.get('ltp'),
+                'symbol': symbol,
+                'exchange': exchange,
+                'ltp': ltp_value,
                 'timestamp': data.get('timestamp', time.time())
             }
 
+            # Log the raw data to debug
+            if ltp_value is None:
+                logger.warning(f"No LTP value found in data: {data}")
 
             if self.on_data_callback:
                 self.on_data_callback(processed_data)
@@ -84,19 +105,48 @@ class OpenAlgoStreamClient:
     def on_quote_update(self, data):
         """Process Quote updates"""
         try:
+            # Handle nested data structure from WebSocket
+            # Format: {"type": "market_data", "mode": 2, "data": {...}}
+            if isinstance(data, dict):
+                if 'data' in data and isinstance(data['data'], dict):
+                    quote_data = data['data']
+                    symbol = data.get('symbol') or quote_data.get('symbol')
+                    exchange = data.get('exchange') or quote_data.get('exchange')
+                else:
+                    quote_data = data
+                    symbol = data.get('symbol')
+                    exchange = data.get('exchange')
+
+                # Extract LTP from quote data - it might be in different fields
+                ltp_value = (quote_data.get('ltp') or
+                            quote_data.get('last_price') or
+                            quote_data.get('close') or
+                            quote_data.get('last') or
+                            # If no LTP, use mid-point of bid-ask
+                            ((quote_data.get('bid', 0) + quote_data.get('ask', 0)) / 2 if quote_data.get('bid') and quote_data.get('ask') else None))
+            else:
+                quote_data = {}
+                ltp_value = None
+                symbol = None
+                exchange = None
+
             processed_data = {
                 'type': 'quote',
-                'symbol': data.get('symbol'),
-                'exchange': data.get('exchange'),
-                'bid': data.get('bid'),
-                'ask': data.get('ask'),
-                'bid_qty': data.get('bid_qty'),
-                'ask_qty': data.get('ask_qty'),
-                'volume': data.get('volume'),
-                'oi': data.get('oi'),
+                'symbol': symbol,
+                'exchange': exchange,
+                'ltp': ltp_value,  # Add LTP to quote data
+                'bid': quote_data.get('bid'),
+                'ask': quote_data.get('ask'),
+                'bid_qty': quote_data.get('bid_qty'),
+                'ask_qty': quote_data.get('ask_qty'),
+                'volume': quote_data.get('volume'),
+                'oi': quote_data.get('oi') or quote_data.get('open_interest'),
                 'timestamp': data.get('timestamp', time.time())
             }
 
+            # Log if we still don't have price data
+            if ltp_value is None:
+                logger.warning(f"No price found in quote data: {data}")
 
             if self.on_data_callback:
                 self.on_data_callback(processed_data)
