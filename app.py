@@ -249,42 +249,11 @@ def get_candles(symbol):
     limit = int(request.args.get('limit', 500))
 
     try:
-        # Try to get aggregated candles first
+        # Get properly aggregated candles
         candles = candle_aggregator.get_historical_candles(symbol, timeframe, limit)
 
-        # If no candles, try to get raw tick data and convert to candles
         if not candles:
-            app.logger.info(f"No aggregated candles for {symbol}, fetching raw ticks")
-
-            # Get raw ticks from QuestDB
-            try:
-                query = """
-                SELECT timestamp, ltp
-                FROM ticks_ltp
-                WHERE symbol = %s
-                ORDER BY timestamp DESC
-                LIMIT %s
-                """
-                questdb_client.cursor.execute(query, (symbol, limit))
-                ticks = questdb_client.cursor.fetchall()
-            except Exception as e:
-                app.logger.error(f"Query error: {e}")
-                ticks = []
-
-            if ticks:
-                # Convert ticks to simple candles
-                candles = []
-                for tick in reversed(ticks):
-                    if tick[0] and tick[1]:
-                        candles.append({
-                            'time': int(tick[0].timestamp()),
-                            'open': float(tick[1]),
-                            'high': float(tick[1]),
-                            'low': float(tick[1]),
-                            'close': float(tick[1]),
-                            'volume': 1
-                        })
-                app.logger.info(f"Created {len(candles)} candles from ticks")
+            app.logger.info(f"No data available for {symbol} with timeframe {timeframe}")
 
         return jsonify({
             'status': 'success',

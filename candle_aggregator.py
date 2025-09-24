@@ -174,19 +174,24 @@ class CandleAggregator:
             else:
                 start_time = datetime.utcnow() - timedelta(days=1)
 
-            # Simple aggregation query for QuestDB
-            # First try to get raw ticks and aggregate in Python
+            # Get the most recent data from QuestDB
+            # Use a subquery to get the latest ticks first
             query = """
             SELECT timestamp, ltp
-            FROM ticks_ltp
-            WHERE symbol = %s
-                AND timestamp >= %s
-                AND ltp IS NOT NULL
+            FROM (
+                SELECT timestamp, ltp
+                FROM ticks_ltp
+                WHERE symbol = %s
+                    AND ltp IS NOT NULL
+                ORDER BY timestamp DESC
+                LIMIT %s
+            ) sub
             ORDER BY timestamp ASC
-            LIMIT %s
             """
 
-            self.questdb.cursor.execute(query, (symbol, start_time, limit * 100))  # Get more ticks to aggregate
+            # Get enough ticks to fill the requested candles
+            ticks_needed = limit * 100 if timeframe == '1m' else limit * 500
+            self.questdb.cursor.execute(query, (symbol, ticks_needed))
             results = self.questdb.cursor.fetchall()
 
             # Aggregate ticks into candles manually

@@ -196,6 +196,7 @@
                 },
                 rightPriceScale: {
                     borderColor: '#141414',
+                    autoScale: true,
                     scaleMargins: {
                         top: 0.1,
                         bottom: 0.2
@@ -348,7 +349,11 @@
                         updateMetrics(lastCandle);
                     }
 
+                    // Auto-scale both time and price axes
                     chart.timeScale().fitContent();
+                    chart.priceScale('right').applyOptions({
+                        autoScale: true
+                    });
                 } else {
                     console.warn('No candle data available for', symbol);
                     // Show message to user
@@ -381,24 +386,34 @@
         // Load latest candle data
         async function loadLatestCandle(symbol, timeframe) {
             try {
-                const response = await fetch(`/api/candles/${symbol}?timeframe=${timeframe}&limit=100`);
+                const response = await fetch(`/api/candles/${symbol}?timeframe=${timeframe}&limit=50`);
                 const data = await response.json();
 
                 if (data.status === 'success' && data.candles && data.candles.length > 0) {
-                    // Get the last few candles and update them
-                    const candles = data.candles.slice(-10);  // Last 10 candles
-                    candles.forEach(candle => {
-                        currentSeries.update({
+                    // Replace all data to ensure proper aggregation
+                    const chartData = data.candles.map(candle => ({
+                        time: candle.time,
+                        open: candle.open,
+                        high: candle.high,
+                        low: candle.low,
+                        close: candle.close
+                    }));
+
+                    // Set all data at once for proper display
+                    currentSeries.setData(chartData);
+
+                    // Update volume if exists
+                    if (volumeSeries) {
+                        const volumeData = data.candles.map(candle => ({
                             time: candle.time,
-                            open: candle.open,
-                            high: candle.high,
-                            low: candle.low,
-                            close: candle.close
-                        });
-                    });
+                            value: candle.volume || 0,
+                            color: candle.close >= candle.open ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+                        }));
+                        volumeSeries.setData(volumeData);
+                    }
 
                     // Update metrics with the latest candle
-                    const latestCandle = candles[candles.length - 1];
+                    const latestCandle = data.candles[data.candles.length - 1];
                     updateMetrics(latestCandle);
                     document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
                 }
