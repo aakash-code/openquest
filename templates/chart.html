@@ -205,7 +205,15 @@
                 timeScale: {
                     borderColor: '#141414',
                     timeVisible: true,
-                    secondsVisible: false
+                    secondsVisible: false,
+                    tickMarkFormatter: (time) => {
+                        // Format x-axis labels to IST
+                        const istTime = (time + 19800) * 1000;
+                        const date = new Date(istTime);
+                        const hours = date.getUTCHours().toString().padStart(2, '0');
+                        const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+                        return `${hours}:${minutes}`;
+                    }
                 },
                 localization: {
                     timeFormatter: (businessDayOrTimestamp) => {
@@ -216,6 +224,9 @@
                         const hours = date.getUTCHours().toString().padStart(2, '0');
                         const minutes = date.getUTCMinutes().toString().padStart(2, '0');
                         return `${hours}:${minutes}`;
+                    },
+                    priceFormatter: (price) => {
+                        return price.toFixed(2);
                     }
                 },
                 watermark: {
