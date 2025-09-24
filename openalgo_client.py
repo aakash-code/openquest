@@ -1,4 +1,4 @@
-from openalgo import api
+from openalgo_wrapper import QuietOpenAlgoAPI as api
 import logging
 import threading
 import time
@@ -74,10 +74,10 @@ class OpenAlgoStreamClient:
                 'timestamp': data.get('timestamp', time.time())
             }
 
+
             if self.on_data_callback:
                 self.on_data_callback(processed_data)
 
-            logger.debug(f"LTP update: {processed_data}")
         except Exception as e:
             logger.error(f"Error processing LTP update: {e}")
 
@@ -97,10 +97,10 @@ class OpenAlgoStreamClient:
                 'timestamp': data.get('timestamp', time.time())
             }
 
+
             if self.on_data_callback:
                 self.on_data_callback(processed_data)
 
-            logger.debug(f"Quote update: {processed_data}")
         except Exception as e:
             logger.error(f"Error processing Quote update: {e}")
 
@@ -118,7 +118,6 @@ class OpenAlgoStreamClient:
             if self.on_data_callback:
                 self.on_data_callback(processed_data)
 
-            logger.debug(f"Depth update: {processed_data}")
         except Exception as e:
             logger.error(f"Error processing Depth update: {e}")
 

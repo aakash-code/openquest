@@ -74,7 +74,16 @@ if __name__ == '__main__':
     logger.info("Press Ctrl+C to stop\n")
 
     try:
-        app.run(
+        # Import here to avoid circular import
+        from app import socketio, candle_aggregator
+
+        # Start candle aggregator
+        candle_aggregator.start()
+        logger.info("Candle aggregator started")
+
+        # Run with SocketIO
+        socketio.run(
+            app,
             host='127.0.0.1',
             port=5001,
             debug=False,
@@ -82,4 +91,5 @@ if __name__ == '__main__':
         )
     except KeyboardInterrupt:
         logger.info("\nShutting down OpenQuest...")
+        candle_aggregator.stop()
         sys.exit(0)

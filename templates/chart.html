@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="supabass">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenQuest - Real-Time Charts</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.2/dist/full.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/lightweight-charts@5.0.0/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        :root {
+            --primary: #10b981;
+            --primary-focus: #059669;
+            --secondary: #000000;
+            --accent: #10b981;
+            --neutral: #1a1a1a;
+            --base-100: #000000;
+            --base-200: #0a0a0a;
+            --base-300: #141414;
+        }
+
+        [data-theme="supabass"] {
+            --p: 158 60% 43%;
+            --pf: 158 60% 33%;
+            --s: 0 0% 0%;
+            --a: 158 60% 43%;
+            --n: 0 0% 10%;
+            --b1: 0 0% 0%;
+            --b2: 0 0% 4%;
+            --b3: 0 0% 8%;
+            --bc: 158 60% 90%;
+            --sc: 158 60% 90%;
+            --ac: 0 0% 0%;
+            --nc: 158 60% 90%;
+        }
+
+        #chart-container {
+            height: calc(100vh - 250px);
+            min-height: 500px;
+        }
+
+        .metric-badge {
+            background: linear-gradient(135deg, #0a0a0a 0%, #141414 100%);
+            border: 1px solid #10b981;
+        }
+    </style>
+</head>
+<body class="bg-base-100 text-green-400">
+    <div class="container mx-auto p-4">
+        <!-- Header -->
+        <div class="navbar bg-base-200 rounded-lg mb-4 shadow-xl border border-green-900">
+            <div class="flex-1">
+                <h1 class="text-2xl font-bold text-green-400">OpenQuest Charts</h1>
+                <a href="/" class="ml-4 btn btn-ghost btn-sm text-green-600">← Dashboard</a>
+            </div>
+            <div class="flex-none gap-2">
+                <div id="connection-status" class="badge badge-error">Disconnected</div>
+                <div id="last-update" class="badge badge-ghost">No data</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="card bg-base-200 shadow-xl mb-4 border border-green-900">
+            <div class="card-body p-4">
+                <div class="flex flex-wrap gap-4 items-center">
+                    <!-- Symbol Selector -->
+                    <div class="form-control">
+                        <select id="symbol-selector" class="select select-bordered select-sm bg-base-300 border-green-700 text-green-300">
+                            <option value="" disabled selected>Select Symbol</option>
+                        </select>
+                    </div>
+
+                    <!-- Timeframe Selector -->
+                    <div class="form-control">
+                        <select id="timeframe-selector" class="select select-bordered select-sm bg-base-300 border-green-700 text-green-300">
+                            <option value="1m" selected>1 Min</option>
+                            <option value="3m">3 Min</option>
+                            <option value="5m">5 Min</option>
+                            <option value="15m">15 Min</option>
+                            <option value="30m">30 Min</option>
+                            <option value="1h">1 Hour</option>
+                            <option value="1d">1 Day</option>
+                        </select>
+                    </div>
+
+                    <!-- Chart Type -->
+                    <div class="form-control">
+                        <select id="chart-type" class="select select-bordered select-sm bg-base-300 border-green-700 text-green-300">
+                            <option value="candlestick" selected>Candlestick</option>
+                            <option value="line">Line</option>
+                            <option value="area">Area</option>
+                            <option value="bar">Bar</option>
+                        </select>
+                    </div>
+
+                    <!-- Streaming Toggle -->
+                    <label class="label cursor-pointer">
+                        <input type="checkbox" id="streaming-toggle" class="checkbox checkbox-success checkbox-sm mr-2" checked />
+                        <span class="label-text text-green-400">Live Updates</span>
+                    </label>
+
+                    <!-- Metrics -->
+                    <div class="flex-1 flex justify-end gap-2">
+                        <div class="metric-badge badge">
+                            <span class="text-xs text-green-600">LTP:</span>
+                            <span id="ltp-value" class="ml-1 font-bold">-</span>
+                        </div>
+                        <div class="metric-badge badge">
+                            <span class="text-xs text-green-600">Change:</span>
+                            <span id="change-value" class="ml-1 font-bold">-</span>
+                        </div>
+                        <div class="metric-badge badge">
+                            <span class="text-xs text-green-600">Volume:</span>
+                            <span id="volume-value" class="ml-1 font-bold">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="card bg-base-200 shadow-xl border border-green-900">
+            <div class="card-body p-4">
+                <div id="chart-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chart configuration
+        let chart = null;
+        let candlestickSeries = null;
+        let lineSeries = null;
+        let areaSeries = null;
+        let barSeries = null;
+        let volumeSeries = null;
+        let currentSeries = null;
+        let ws = null;
+        let currentSymbol = null;
+        let currentTimeframe = '1m';
+        let streamingEnabled = true;
+        let lastCandle = null;
+
+        // Load MCX symbols
+        const symbols = {{ symbols | tojson }};
+
+        // Initialize symbol selector
+        function initSymbolSelector() {
+            const selector = document.getElementById('symbol-selector');
+            symbols.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.symbol;
+                option.textContent = item.symbol;
+                selector.appendChild(option);
+            });
+
+            // Select first symbol by default
+            if (symbols.length > 0) {
+                selector.value = symbols[0].symbol;
+                currentSymbol = symbols[0].symbol;
+            }
+        }
+
+        // Initialize chart
+        function initChart() {
+            const container = document.getElementById('chart-container');
+
+            chart = LightweightCharts.createChart(container, {
+                width: container.clientWidth,
+                height: container.clientHeight,
+                layout: {
+                    background: { color: '#000000' },
+                    textColor: '#10b981',
+                    fontSize: 12,
+                    fontFamily: 'system-ui, -apple-system, sans-serif'
+                },
+                grid: {
+                    vertLines: { color: '#0a0a0a' },
+                    horzLines: { color: '#0a0a0a' }
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                    vertLine: {
+                        color: '#10b981',
+                        width: 1,
+                        style: LightweightCharts.LineStyle.Dotted,
+                        labelBackgroundColor: '#10b981'
+                    },
+                    horzLine: {
+                        color: '#10b981',
+                        width: 1,
+                        style: LightweightCharts.LineStyle.Dotted,
+                        labelBackgroundColor: '#10b981'
+                    }
+                },
+                rightPriceScale: {
+                    borderColor: '#141414',
+                    scaleMargins: {
+                        top: 0.1,
+                        bottom: 0.2
+                    }
+                },
+                timeScale: {
+                    borderColor: '#141414',
+                    timeVisible: true,
+                    secondsVisible: false
+                },
+                watermark: {
+                    color: 'rgba(16, 185, 129, 0.1)',
+                    visible: true,
+                    text: 'OpenQuest',
+                    fontSize: 24,
+                    horzAlign: 'center',
+                    vertAlign: 'center'
+                }
+            });
+
+            // Create series based on chart type
+            updateChartType('candlestick');
+
+            // Handle resize
+            window.addEventListener('resize', () => {
+                chart.resize(container.clientWidth, container.clientHeight);
+            });
+        }
+
+        // Update chart type
+        function updateChartType(type) {
+            // Remove existing series
+            if (candlestickSeries) {
+                chart.removeSeries(candlestickSeries);
+                candlestickSeries = null;
+            }
+            if (lineSeries) {
+                chart.removeSeries(lineSeries);
+                lineSeries = null;
+            }
+            if (areaSeries) {
+                chart.removeSeries(areaSeries);
+                areaSeries = null;
+            }
+            if (barSeries) {
+                chart.removeSeries(barSeries);
+                barSeries = null;
+            }
+
+            // Create new series
+            switch(type) {
+                case 'candlestick':
+                    candlestickSeries = chart.addCandlestickSeries({
+                        upColor: '#10b981',
+                        downColor: '#ef4444',
+                        borderUpColor: '#10b981',
+                        borderDownColor: '#ef4444',
+                        wickUpColor: '#10b981',
+                        wickDownColor: '#ef4444'
+                    });
+                    currentSeries = candlestickSeries;
+                    break;
+                case 'line':
+                    lineSeries = chart.addLineSeries({
+                        color: '#10b981',
+                        lineWidth: 2
+                    });
+                    currentSeries = lineSeries;
+                    break;
+                case 'area':
+                    areaSeries = chart.addAreaSeries({
+                        lineColor: '#10b981',
+                        topColor: 'rgba(16, 185, 129, 0.4)',
+                        bottomColor: 'rgba(16, 185, 129, 0.0)',
+                        lineWidth: 2
+                    });
+                    currentSeries = areaSeries;
+                    break;
+                case 'bar':
+                    barSeries = chart.addBarSeries({
+                        upColor: '#10b981',
+                        downColor: '#ef4444'
+                    });
+                    currentSeries = barSeries;
+                    break;
+            }
+
+            // Add volume series
+            if (!volumeSeries) {
+                volumeSeries = chart.addHistogramSeries({
+                    color: 'rgba(16, 185, 129, 0.3)',
+                    priceScaleId: 'volume',
+                    priceFormat: {
+                        type: 'volume'
+                    }
+                });
+
+                chart.priceScale('volume').applyOptions({
+                    scaleMargins: {
+                        top: 0.8,
+                        bottom: 0
+                    }
+                });
+            }
+
+            // Load data for current symbol
+            if (currentSymbol) {
+                loadChartData(currentSymbol, currentTimeframe);
+            }
+        }
+
+        // Load chart data
+        async function loadChartData(symbol, timeframe) {
+            try {
+                console.log(`Loading chart data for ${symbol} with timeframe ${timeframe}`);
+                const response = await fetch(`/api/candles/${symbol}?timeframe=${timeframe}&limit=500`);
+                const data = await response.json();
+
+                console.log(`Received ${data.count || 0} candles`, data);
+
+                if (data.status === 'success' && data.candles && data.candles.length > 0) {
+                    const chartData = data.candles.map(candle => ({
+                        time: candle.time,
+                        open: candle.open,
+                        high: candle.high,
+                        low: candle.low,
+                        close: candle.close,
+                        value: candle.close, // for line/area series
+                        volume: candle.volume
+                    }));
+
+                    // Update main series
+                    if (currentSeries) {
+                        currentSeries.setData(chartData);
+                    }
+
+                    // Update volume series
+                    if (volumeSeries) {
+                        const volumeData = chartData.map(d => ({
+                            time: d.time,
+                            value: d.volume,
+                            color: d.close >= d.open ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+                        }));
+                        volumeSeries.setData(volumeData);
+                    }
+
+                    // Store last candle for updates
+                    if (chartData.length > 0) {
+                        lastCandle = chartData[chartData.length - 1];
+                        updateMetrics(lastCandle);
+                    }
+
+                    chart.timeScale().fitContent();
+                } else {
+                    console.warn('No candle data available for', symbol);
+                    // Show message to user
+                    document.getElementById('last-update').textContent = 'No data available';
+                    document.getElementById('last-update').className = 'badge badge-warning';
+                }
+            } catch (error) {
+                console.error('Failed to load chart data:', error);
+                document.getElementById('last-update').textContent = 'Error loading data';
+                document.getElementById('last-update').className = 'badge badge-error';
+            }
+        }
+
+        // Connect to Socket.IO for real-time candle updates from QuestDB
+        function connectWebSocket() {
+            // For now, just show as connected since data is coming from API
+            // Socket.IO integration can be added later if needed
+            console.log('Using API polling for updates');
+            document.getElementById('connection-status').className = 'badge badge-success';
+            document.getElementById('connection-status').textContent = 'Connected';
+
+            // Poll for updates every 5 seconds
+            setInterval(() => {
+                if (currentSymbol && streamingEnabled) {
+                    // Reload just the last candle
+                    loadLatestCandle(currentSymbol, currentTimeframe);
+                }
+            }, 5000);
+        }
+
+        // Load latest candle data
+        async function loadLatestCandle(symbol, timeframe) {
+            try {
+                const response = await fetch(`/api/candles/${symbol}?timeframe=${timeframe}&limit=1`);
+                const data = await response.json();
+
+                if (data.status === 'success' && data.candles && data.candles.length > 0) {
+                    const candle = data.candles[0];
+                    updateCandleFromQuestDB(candle);
+                }
+            } catch (error) {
+                console.error('Failed to load latest candle:', error);
+            }
+        }
+
+        // Update candle from QuestDB aggregated data
+        function updateCandleFromQuestDB(candle) {
+            if (!currentSeries || !candle) return;
+
+            // Update or add the candle
+            currentSeries.update({
+                time: candle.time,
+                open: candle.open,
+                high: candle.high,
+                low: candle.low,
+                close: candle.close,
+                value: candle.close
+            });
+
+            // Update volume
+            if (volumeSeries) {
+                volumeSeries.update({
+                    time: candle.time,
+                    value: candle.volume,
+                    color: candle.close >= candle.open ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+                });
+            }
+
+            lastCandle = candle;
+            updateMetrics(candle);
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+        }
+
+        // Get time for timeframe
+        function getTimeForTimeframe(timestamp, timeframe) {
+            const date = new Date(timestamp * 1000);
+
+            switch(timeframe) {
+                case '1m':
+                    date.setSeconds(0, 0);
+                    break;
+                case '3m':
+                    date.setMinutes(Math.floor(date.getMinutes() / 3) * 3, 0, 0);
+                    break;
+                case '5m':
+                    date.setMinutes(Math.floor(date.getMinutes() / 5) * 5, 0, 0);
+                    break;
+                case '15m':
+                    date.setMinutes(Math.floor(date.getMinutes() / 15) * 15, 0, 0);
+                    break;
+                case '30m':
+                    date.setMinutes(Math.floor(date.getMinutes() / 30) * 30, 0, 0);
+                    break;
+                case '1h':
+                    date.setMinutes(0, 0, 0);
+                    break;
+                case '1d':
+                    date.setHours(0, 0, 0, 0);
+                    break;
+            }
+
+            return Math.floor(date.getTime() / 1000);
+        }
+
+        // Update metrics display
+        function updateMetrics(candle) {
+            document.getElementById('ltp-value').textContent = candle.close.toFixed(2);
+
+            const change = candle.close - candle.open;
+            const changePercent = (change / candle.open * 100).toFixed(2);
+            const changeElement = document.getElementById('change-value');
+            changeElement.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent}%)`;
+            changeElement.style.color = change >= 0 ? '#10b981' : '#ef4444';
+
+            document.getElementById('volume-value').textContent = formatVolume(candle.volume || 0);
+        }
+
+        // Format volume
+        function formatVolume(volume) {
+            if (volume >= 1000000) {
+                return (volume / 1000000).toFixed(2) + 'M';
+            } else if (volume >= 1000) {
+                return (volume / 1000).toFixed(2) + 'K';
+            }
+            return volume.toString();
+        }
+
+        // Event listeners
+        document.getElementById('symbol-selector').addEventListener('change', (e) => {
+            const previousSymbol = currentSymbol;
+            currentSymbol = e.target.value;
+            loadChartData(currentSymbol, currentTimeframe);
+
+            // Update Socket.IO subscription
+            if (window.candleSocket && window.candleSocket.connected) {
+                // Unsubscribe from previous symbol
+                if (previousSymbol) {
+                    window.candleSocket.emit('unsubscribe', {
+                        symbol: previousSymbol,
+                        timeframe: currentTimeframe
+                    });
+                }
+
+                // Subscribe to new symbol
+                window.candleSocket.emit('subscribe', {
+                    symbol: currentSymbol,
+                    timeframe: currentTimeframe
+                });
+            }
+        });
+
+        document.getElementById('timeframe-selector').addEventListener('change', (e) => {
+            const previousTimeframe = currentTimeframe;
+            currentTimeframe = e.target.value;
+            if (currentSymbol) {
+                loadChartData(currentSymbol, currentTimeframe);
+
+                // Update Socket.IO subscription
+                if (window.candleSocket && window.candleSocket.connected) {
+                    // Unsubscribe from previous timeframe
+                    window.candleSocket.emit('unsubscribe', {
+                        symbol: currentSymbol,
+                        timeframe: previousTimeframe
+                    });
+
+                    // Subscribe to new timeframe
+                    window.candleSocket.emit('subscribe', {
+                        symbol: currentSymbol,
+                        timeframe: currentTimeframe
+                    });
+                }
+            }
+        });
+
+        document.getElementById('chart-type').addEventListener('change', (e) => {
+            updateChartType(e.target.value);
+        });
+
+        document.getElementById('streaming-toggle').addEventListener('change', (e) => {
+            streamingEnabled = e.target.checked;
+        });
+
+        // Initialize
+        initSymbolSelector();
+        initChart();
+        connectWebSocket();
+
+        // Load initial data
+        if (currentSymbol) {
+            loadChartData(currentSymbol, currentTimeframe);
+        }
+    </script>
+</body>
+</html>

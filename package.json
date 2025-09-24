@@ -1,0 +1,21 @@
+{
+  "name": "openquest-charts",
+  "version": "1.0.0",
+  "description": "Real-time charts for OpenQuest using TradingView Lightweight Charts",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "trading",
+    "charts",
+    "realtime",
+    "mcx",
+    "openalgo"
+  ],
+  "author": "",
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "lightweight-charts": "^5.0.0"
+  }
+}

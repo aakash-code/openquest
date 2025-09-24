@@ -171,7 +171,7 @@ class QuestDBClient:
             logger.error(f"Failed to fetch latest ticks: {e}")
             return []
 
-    def get_aggregated_data(self, symbol, interval='1m', start_time=None):
+    def get_aggregated_data(self, symbol, interval='1m', start_time=None, limit=500):
         if not self.is_connected():
             return []
 
@@ -179,22 +179,50 @@ class QuestDBClient:
             if start_time is None:
                 start_time = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
+            # QuestDB aggregation query
             query = """
             SELECT
-                sample_by(%s, timestamp) as time,
+                timestamp as time,
                 first(ltp) as open,
                 max(ltp) as high,
                 min(ltp) as low,
                 last(ltp) as close,
-                count(*) as tick_count
+                count(*) as volume
             FROM ticks_ltp
             WHERE symbol = %s AND timestamp >= %s
+            SAMPLE BY %s
+            ORDER BY time DESC
+            LIMIT %s
             """
-            self.cursor.execute(query, (interval, symbol, start_time))
-            return self.cursor.fetchall()
+
+            self.cursor.execute(query, (symbol, start_time, interval, limit))
+            results = self.cursor.fetchall()
+
+            # Reverse to get chronological order
+            return list(reversed(results))
         except Exception as e:
             logger.error(f"Failed to fetch aggregated data: {e}")
-            return []
+            # Fallback to simple query
+            try:
+                query = """
+                SELECT
+                    timestamp as time,
+                    ltp as close,
+                    ltp as open,
+                    ltp as high,
+                    ltp as low,
+                    1 as volume
+                FROM ticks_ltp
+                WHERE symbol = %s
+                ORDER BY timestamp DESC
+                LIMIT %s
+                """
+                self.cursor.execute(query, (symbol, limit))
+                results = self.cursor.fetchall()
+                return list(reversed(results))
+            except Exception as e2:
+                logger.error(f"Fallback query also failed: {e2}")
+                return []
 
     def close(self):
         if self.cursor:
