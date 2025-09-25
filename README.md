@@ -120,11 +120,16 @@ OpenQuest uses QuestDB with the following optimized schema:
 |--------|------|-------------|
 | timestamp | TIMESTAMP | Time of quote (IST) |
 | symbol | SYMBOL | Trading symbol |
-| bid | DOUBLE | Best bid price |
-| ask | DOUBLE | Best ask price |
-| spread | DOUBLE | Bid-ask spread |
-| volume | LONG | Trading volume |
-| open_interest | LONG | Open interest |
+| ltp | DOUBLE | Last traded price |
+| open | DOUBLE | Day's opening price |
+| high | DOUBLE | Day's highest price |
+| low | DOUBLE | Day's lowest price |
+| close | DOUBLE | Current/closing price |
+| volume | LONG | Total traded volume |
+| last_trade_quantity | LONG | Quantity of last trade |
+| change | DOUBLE | Price change from open |
+| change_percent | DOUBLE | Price change percentage |
+| avg_trade_price | DOUBLE | Average trade price |
 
 ### ticks_depth
 | Column | Type | Description |
@@ -136,6 +141,8 @@ OpenQuest uses QuestDB with the following optimized schema:
 | ask | DOUBLE | Ask price at level |
 | bid_qty | LONG | Bid quantity |
 | ask_qty | LONG | Ask quantity |
+| bid_orders | INT | Number of bid orders |
+| ask_orders | INT | Number of ask orders |
 
 ## 🔌 API Endpoints
 

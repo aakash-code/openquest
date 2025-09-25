@@ -53,11 +53,16 @@ class QuestDBClient:
             CREATE TABLE IF NOT EXISTS ticks_quote (
                 timestamp TIMESTAMP,
                 symbol SYMBOL,
-                bid DOUBLE,
-                ask DOUBLE,
-                spread DOUBLE,
+                ltp DOUBLE,
+                open DOUBLE,
+                high DOUBLE,
+                low DOUBLE,
+                close DOUBLE,
                 volume LONG,
-                open_interest LONG
+                last_trade_quantity LONG,
+                change DOUBLE,
+                change_percent DOUBLE,
+                avg_trade_price DOUBLE
             ) timestamp(timestamp) PARTITION BY DAY;
             """,
             """
@@ -68,7 +73,9 @@ class QuestDBClient:
                 bid DOUBLE,
                 ask DOUBLE,
                 bid_qty LONG,
-                ask_qty LONG
+                ask_qty LONG,
+                bid_orders INT,
+                ask_orders INT
             ) timestamp(timestamp) PARTITION BY DAY;
             """
         ]
@@ -81,7 +88,7 @@ class QuestDBClient:
                 logger.warning(f"Table creation: {e}")
                 self.connection.rollback()
 
-    def insert_ltp(self, symbol, ltp, volume=None):
+    def insert_ltp(self, symbol, ltp, volume=0):
         if not self.is_connected():
             return False
 
@@ -91,6 +98,8 @@ class QuestDBClient:
             VALUES (%s, %s, %s, %s)
             """
             timestamp = datetime.now()  # Use local time (IST)
+            # Ensure volume is never NULL, default to 0
+            volume = volume if volume is not None else 0
             self.cursor.execute(query, (timestamp, symbol, ltp, volume))
             self.connection.commit()
             return True
@@ -99,17 +108,22 @@ class QuestDBClient:
             self.connection.rollback()
             return False
 
-    def insert_quote(self, symbol, bid, ask, spread, volume, open_interest):
+    def insert_quote(self, symbol, ltp, open_price, high, low, close, volume,
+                     last_trade_quantity=None, change=None, change_percent=None, avg_trade_price=None):
         if not self.is_connected():
             return False
 
         try:
             query = """
-            INSERT INTO ticks_quote (timestamp, symbol, bid, ask, spread, volume, open_interest)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO ticks_quote (timestamp, symbol, ltp, open, high, low, close,
+                                   volume, last_trade_quantity, change, change_percent, avg_trade_price)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             timestamp = datetime.now()  # Use local time (IST)
-            self.cursor.execute(query, (timestamp, symbol, bid, ask, spread, volume, open_interest))
+            self.cursor.execute(query, (
+                timestamp, symbol, ltp, open_price, high, low, close,
+                volume or 0, last_trade_quantity, change, change_percent, avg_trade_price
+            ))
             self.connection.commit()
             return True
         except Exception as e:
@@ -117,17 +131,17 @@ class QuestDBClient:
             self.connection.rollback()
             return False
 
-    def insert_depth(self, symbol, level, bid, ask, bid_qty, ask_qty):
+    def insert_depth(self, symbol, level, bid, ask, bid_qty, ask_qty, bid_orders=None, ask_orders=None):
         if not self.is_connected():
             return False
 
         try:
             query = """
-            INSERT INTO ticks_depth (timestamp, symbol, level, bid, ask, bid_qty, ask_qty)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO ticks_depth (timestamp, symbol, level, bid, ask, bid_qty, ask_qty, bid_orders, ask_orders)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             timestamp = datetime.now()  # Use local time (IST)
-            self.cursor.execute(query, (timestamp, symbol, level, bid, ask, bid_qty, ask_qty))
+            self.cursor.execute(query, (timestamp, symbol, level, bid, ask, bid_qty, ask_qty, bid_orders, ask_orders))
             self.connection.commit()
             return True
         except Exception as e:

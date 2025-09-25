@@ -179,30 +179,70 @@ def handle_websocket_data(data):
 
             # Store in QuestDB with volume (last_trade_quantity)
             if 'ltp' in data and data['ltp'] is not None:
-                volume = data.get('last_trade_quantity') or data.get('volume')
+                # Get volume, defaulting to 0 if not available (never store NULL)
+                volume = data.get('last_trade_quantity') or data.get('volume') or 0
                 success = questdb_client.insert_ltp(symbol, data['ltp'], volume)
                 if not success:
                     app.logger.warning(f"Failed to store LTP for {symbol}")
 
-            if 'bid' in data and 'ask' in data and data['bid'] is not None and data['ask'] is not None:
+            # Store quote data with OHLC information
+            if data.get('type') == 'quote':
+                # Calculate change if not provided
+                ltp = data.get('ltp')
+                open_price = data.get('open')
+                change = data.get('change')
+                change_percent = data.get('change_percent')
+
+                # Calculate change if not provided but we have ltp and open
+                if change is None and ltp is not None and open_price is not None:
+                    change = ltp - open_price
+                    change_percent = (change / open_price * 100) if open_price != 0 else None
+
                 questdb_client.insert_quote(
                     symbol=symbol,
-                    bid=data['bid'],
-                    ask=data['ask'],
-                    spread=data.get('spread', data['ask'] - data['bid']),
-                    volume=data.get('volume', 0),
-                    open_interest=data.get('oi', 0)
+                    ltp=ltp,
+                    open_price=open_price,
+                    high=data.get('high'),
+                    low=data.get('low'),
+                    close=data.get('close') or ltp,  # Use LTP as close if not provided
+                    volume=data.get('volume'),
+                    last_trade_quantity=data.get('last_trade_quantity'),
+                    change=change,
+                    change_percent=change_percent,
+                    avg_trade_price=data.get('avg_trade_price')
                 )
 
-            if 'depth' in data:
-                for level, depth_data in enumerate(data['depth']):
+            # Store depth data if available
+            if data.get('type') == 'depth' and 'depth' in data:
+                depth_info = data.get('depth', {})
+
+                # Process buy side (bids)
+                buy_orders = depth_info.get('buy', [])
+                for level, order in enumerate(buy_orders[:5]):  # Store top 5 levels
                     questdb_client.insert_depth(
                         symbol=symbol,
                         level=level,
-                        bid=depth_data.get('bid', 0),
-                        ask=depth_data.get('ask', 0),
-                        bid_qty=depth_data.get('bid_qty', 0),
-                        ask_qty=depth_data.get('ask_qty', 0)
+                        bid=order.get('price', 0),
+                        ask=None,  # No ask at this level for buy side
+                        bid_qty=order.get('quantity', 0),
+                        ask_qty=None,
+                        bid_orders=order.get('orders'),
+                        ask_orders=None
+                    )
+
+                # Process sell side (asks)
+                sell_orders = depth_info.get('sell', [])
+                for level, order in enumerate(sell_orders[:5]):  # Store top 5 levels
+                    # Update the same level with ask data
+                    questdb_client.insert_depth(
+                        symbol=symbol,
+                        level=level,
+                        bid=buy_orders[level].get('price', 0) if level < len(buy_orders) else None,
+                        ask=order.get('price', 0),
+                        bid_qty=buy_orders[level].get('quantity', 0) if level < len(buy_orders) else None,
+                        ask_qty=order.get('quantity', 0),
+                        bid_orders=buy_orders[level].get('orders') if level < len(buy_orders) else None,
+                        ask_orders=order.get('orders')
                     )
     except Exception as e:
         app.logger.error(f"Error handling WebSocket data: {e}")
@@ -338,7 +378,7 @@ if __name__ == '__main__':
     # Run with SocketIO in production mode with logging
     socketio.run(
         app,
-        debug=True,  # Disable debug mode for production
+        debug=False,  # Disable debug mode for production
         port=5001,
         host='127.0.0.1',
         use_reloader=False,  # Disable auto-reloader

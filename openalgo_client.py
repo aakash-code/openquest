@@ -170,12 +170,30 @@ class OpenAlgoStreamClient:
     def on_depth_update(self, data):
         """Process Depth updates"""
         try:
+            # Handle nested data structure
+            # Format: {"type": "market_data", "mode": 3, "data": {...}}
+            if isinstance(data, dict):
+                if 'data' in data and isinstance(data['data'], dict):
+                    depth_data = data['data']
+                    symbol = depth_data.get('symbol') or data.get('topic', '').split('.')[0]
+                    exchange = depth_data.get('exchange') or data.get('topic', '').split('.')[1] if '.' in data.get('topic', '') else None
+                    ltp = depth_data.get('ltp')
+                    depth = depth_data.get('depth', {})
+                else:
+                    depth_data = data
+                    symbol = data.get('symbol')
+                    exchange = data.get('exchange')
+                    ltp = data.get('ltp')
+                    depth = data.get('depth', {})
+
             processed_data = {
                 'type': 'depth',
-                'symbol': data.get('symbol'),
-                'exchange': data.get('exchange'),
-                'depth': data.get('depth', []),
-                'timestamp': data.get('timestamp', time.time())
+                'symbol': symbol,
+                'exchange': exchange,
+                'ltp': ltp,
+                'depth': depth,
+                'depth_level': data.get('depth_level', 5),
+                'timestamp': depth_data.get('timestamp', time.time()) if 'data' in data else data.get('timestamp', time.time())
             }
 
             if self.on_data_callback:

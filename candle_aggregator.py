@@ -119,7 +119,7 @@ class CandleAggregator:
                 max(ltp) as high,
                 min(ltp) as low,
                 last(ltp) as close,
-                sum(volume) as volume
+                COALESCE(sum(volume), 0) as volume
             FROM ticks_ltp
             WHERE symbol = %s
                 AND timestamp >= %s
@@ -136,7 +136,7 @@ class CandleAggregator:
                     'high': float(result[2]) if result[2] else 0,
                     'low': float(result[3]) if result[3] else 0,
                     'close': float(result[4]) if result[4] else 0,
-                    'volume': int(result[5]) if result[5] else 0,
+                    'volume': int(result[5]) if result[5] is not None else 0,
                     'symbol': symbol,
                     'timeframe': timeframe,
                     'complete': False  # Current candle is not complete
@@ -221,7 +221,8 @@ class CandleAggregator:
                         timestamp = int(row[0].timestamp())
                         bucket = (timestamp // bucket_seconds) * bucket_seconds
                         price = float(row[1])
-                        volume = float(row[2]) if row[2] else 0
+                        # Handle NULL volumes properly - treat as 0
+                        volume = float(row[2]) if row[2] is not None else 0
                         candle_dict[bucket].append((timestamp, price, volume))
 
                 # Create candles from grouped ticks
