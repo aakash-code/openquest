@@ -112,6 +112,7 @@ class CandleAggregator:
                 start_time = now.replace(second=0, microsecond=0)
 
             # Query for OHLCV data in current window
+            # Note: 'volume' column in ticks_ltp stores last_trade_quantity
             query = """
             SELECT
                 min(timestamp) as time,
@@ -119,7 +120,7 @@ class CandleAggregator:
                 max(ltp) as high,
                 min(ltp) as low,
                 last(ltp) as close,
-                COALESCE(sum(volume), 0) as volume
+                COALESCE(sum(volume), 0) as trade_volume
             FROM ticks_ltp
             WHERE symbol = %s
                 AND timestamp >= %s
@@ -254,7 +255,8 @@ class CandleAggregator:
                 query = """
                 SELECT
                     timestamp,
-                    ltp as close
+                    ltp as close,
+                    COALESCE(volume, 0) as volume
                 FROM ticks_ltp
                 WHERE symbol = %s
                 ORDER BY timestamp DESC
@@ -273,7 +275,7 @@ class CandleAggregator:
                             'high': float(row[1]),
                             'low': float(row[1]),
                             'close': float(row[1]),
-                            'volume': 1
+                            'volume': int(row[2]) if row[2] is not None else 0  # Use actual volume from DB
                         })
                 return candles
             except Exception as e2:

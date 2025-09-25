@@ -177,11 +177,12 @@ def handle_websocket_data(data):
             # Data is already being streamed to charts via OpenAlgo WebSocket
             # No need for separate broadcasting
 
-            # Store in QuestDB with volume (last_trade_quantity)
+            # Store in QuestDB with last_trade_quantity (NOT total volume)
             if 'ltp' in data and data['ltp'] is not None:
-                # Get volume, defaulting to 0 if not available (never store NULL)
-                volume = data.get('last_trade_quantity') or data.get('volume') or 0
-                success = questdb_client.insert_ltp(symbol, data['ltp'], volume)
+                # Store last_trade_quantity ONLY, not the day's total volume
+                # This will be aggregated for candle volumes
+                trade_qty = data.get('last_trade_quantity') or 0
+                success = questdb_client.insert_ltp(symbol, data['ltp'], trade_qty)
                 if not success:
                     app.logger.warning(f"Failed to store LTP for {symbol}")
 
@@ -205,8 +206,8 @@ def handle_websocket_data(data):
                     high=data.get('high'),
                     low=data.get('low'),
                     close=data.get('close') or ltp,  # Use LTP as close if not provided
-                    volume=data.get('volume'),
-                    last_trade_quantity=data.get('last_trade_quantity'),
+                    volume=data.get('volume') or 0,  # This is day's total volume - for reference only
+                    last_trade_quantity=data.get('last_trade_quantity') or 0,  # This is what we aggregate
                     change=change,
                     change_percent=change_percent,
                     avg_trade_price=data.get('avg_trade_price')
@@ -225,7 +226,7 @@ def handle_websocket_data(data):
                         bid=order.get('price', 0),
                         ask=None,  # No ask at this level for buy side
                         bid_qty=order.get('quantity', 0),
-                        ask_qty=None,
+                        ask_qty=0,  # Use 0 instead of None
                         bid_orders=order.get('orders'),
                         ask_orders=None
                     )
@@ -239,7 +240,7 @@ def handle_websocket_data(data):
                         level=level,
                         bid=buy_orders[level].get('price', 0) if level < len(buy_orders) else None,
                         ask=order.get('price', 0),
-                        bid_qty=buy_orders[level].get('quantity', 0) if level < len(buy_orders) else None,
+                        bid_qty=buy_orders[level].get('quantity', 0) if level < len(buy_orders) else 0,
                         ask_qty=order.get('quantity', 0),
                         bid_orders=buy_orders[level].get('orders') if level < len(buy_orders) else None,
                         ask_orders=order.get('orders')

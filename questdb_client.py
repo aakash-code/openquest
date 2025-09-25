@@ -120,9 +120,13 @@ class QuestDBClient:
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             timestamp = datetime.now()  # Use local time (IST)
+            # Ensure volume fields are never NULL, default to 0
+            volume = volume if volume is not None else 0
+            last_trade_quantity = last_trade_quantity if last_trade_quantity is not None else 0
+
             self.cursor.execute(query, (
                 timestamp, symbol, ltp, open_price, high, low, close,
-                volume or 0, last_trade_quantity, change, change_percent, avg_trade_price
+                volume, last_trade_quantity, change, change_percent, avg_trade_price
             ))
             self.connection.commit()
             return True
@@ -141,6 +145,10 @@ class QuestDBClient:
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
             timestamp = datetime.now()  # Use local time (IST)
+            # Ensure quantities are never NULL, default to 0
+            bid_qty = bid_qty if bid_qty is not None else 0
+            ask_qty = ask_qty if ask_qty is not None else 0
+
             self.cursor.execute(query, (timestamp, symbol, level, bid, ask, bid_qty, ask_qty, bid_orders, ask_orders))
             self.connection.commit()
             return True

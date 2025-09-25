@@ -113,7 +113,7 @@ OpenQuest uses QuestDB with the following optimized schema:
 | timestamp | TIMESTAMP | Time of tick (IST) |
 | symbol | SYMBOL | Trading symbol |
 | ltp | DOUBLE | Last traded price |
-| volume | LONG | Last trade quantity |
+| volume | LONG | Last trade quantity (aggregated for candles) |
 
 ### ticks_quote
 | Column | Type | Description |

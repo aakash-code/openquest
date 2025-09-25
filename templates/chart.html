@@ -482,6 +482,23 @@
                         volumeSeries.setData(volumeData);
                     }
 
+                    // Recalculate day stats with latest data
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const todayTime = Math.floor(today.getTime() / 1000);
+
+                    const todayCandles = data.candles.filter(c => c.time >= todayTime);
+                    if (todayCandles.length > 0) {
+                        dayStats = {
+                            open: todayCandles[0].open,
+                            high: Math.max(...todayCandles.map(c => c.high)),
+                            low: Math.min(...todayCandles.map(c => c.low)),
+                            close: todayCandles[todayCandles.length - 1].close,
+                            volume: todayCandles.reduce((sum, c) => sum + (c.volume || 0), 0),
+                            prevClose: data.candles[0].open
+                        };
+                    }
+
                     // Update metrics with the latest candle
                     const latestCandle = data.candles[data.candles.length - 1];
                     updateMetrics(latestCandle);
@@ -594,8 +611,7 @@
                     document.getElementById('low-value').textContent = ltp.toFixed(2);
                 }
 
-                // Update cumulative volume
-                dayStats.volume += (candle.volume || 0);
+                // Display the day's total volume (already calculated, don't accumulate)
                 document.getElementById('volume-value').textContent = formatVolume(dayStats.volume);
             } else {
                 // Fallback to candle data if no day stats
