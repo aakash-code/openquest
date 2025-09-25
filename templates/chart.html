@@ -585,33 +585,46 @@
                         latestCandle.close !== null &&
                         latestCandle.time !== null) {
 
-                        // Update only the latest candle
-                        if (currentSeries) {
-                            currentSeries.update({
-                                time: latestCandle.time,
-                                open: latestCandle.open || 0,
-                                high: latestCandle.high || 0,
-                                low: latestCandle.low || 0,
-                                close: latestCandle.close || 0
-                            });
+                        // Check if we should update or skip
+                        if (currentSeries && lastCandle) {
+                            // Only update if it's the same candle time or a new candle
+                            if (latestCandle.time === lastCandle.time) {
+                                // Update existing candle
+                                currentSeries.update({
+                                    time: latestCandle.time,
+                                    open: latestCandle.open || 0,
+                                    high: latestCandle.high || 0,
+                                    low: latestCandle.low || 0,
+                                    close: latestCandle.close || 0
+                                });
+
+                                // Update volume
+                                if (volumeSeries) {
+                                    volumeSeries.update({
+                                        time: latestCandle.time,
+                                        value: latestCandle.volume || 0,
+                                        color: (latestCandle.close >= latestCandle.open) ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'
+                                    });
+                                }
+                            } else if (latestCandle.time > lastCandle.time) {
+                                // It's a new candle, need to reload to add it properly
+                                console.log('New candle detected, reloading chart data');
+                                loadChartData(symbol, timeframe);
+                                return;
+                            }
+                            // If latestCandle.time < lastCandle.time, skip it (old data)
                         }
 
-                        // Update volume for the latest candle
-                        if (volumeSeries) {
-                            volumeSeries.update({
-                                time: latestCandle.time,
-                                value: latestCandle.volume || 0,
-                                color: (latestCandle.close >= latestCandle.open) ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'
-                            });
-                        }
+                        // Store for next comparison
+                        lastCandle = latestCandle;
+
+                        // Update metrics with the latest candle
+                        updateMetrics(latestCandle);
+                        document.getElementById('last-update').textContent = new Date().toLocaleTimeString('en-IN', {
+                            timeZone: 'Asia/Kolkata',
+                            hour12: true
+                        });
                     }
-
-                    // Update metrics with the latest candle
-                    updateMetrics(latestCandle);
-                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('en-IN', {
-                        timeZone: 'Asia/Kolkata',
-                        hour12: true
-                    });
                 }
             } catch (error) {
                 console.error('Failed to load latest candle:', error);
