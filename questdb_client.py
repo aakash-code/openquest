@@ -45,7 +45,8 @@ class QuestDBClient:
             CREATE TABLE IF NOT EXISTS ticks_ltp (
                 timestamp TIMESTAMP,
                 symbol SYMBOL,
-                ltp DOUBLE
+                ltp DOUBLE,
+                volume LONG
             ) timestamp(timestamp) PARTITION BY DAY;
             """,
             """
@@ -80,17 +81,17 @@ class QuestDBClient:
                 logger.warning(f"Table creation: {e}")
                 self.connection.rollback()
 
-    def insert_ltp(self, symbol, ltp):
+    def insert_ltp(self, symbol, ltp, volume=None):
         if not self.is_connected():
             return False
 
         try:
             query = """
-            INSERT INTO ticks_ltp (timestamp, symbol, ltp)
-            VALUES (%s, %s, %s)
+            INSERT INTO ticks_ltp (timestamp, symbol, ltp, volume)
+            VALUES (%s, %s, %s, %s)
             """
             timestamp = datetime.now()  # Use local time (IST)
-            self.cursor.execute(query, (timestamp, symbol, ltp))
+            self.cursor.execute(query, (timestamp, symbol, ltp, volume))
             self.connection.commit()
             return True
         except Exception as e:

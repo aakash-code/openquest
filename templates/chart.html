@@ -101,7 +101,23 @@
                     </label>
 
                     <!-- Metrics -->
-                    <div class="flex-1 flex justify-end gap-2">
+                    <div class="flex-1 flex justify-end gap-2 flex-wrap">
+                        <div class="metric-badge badge">
+                            <span class="text-xs text-green-600">Open:</span>
+                            <span id="open-value" class="ml-1 font-bold">-</span>
+                        </div>
+                        <div class="metric-badge badge">
+                            <span class="text-xs text-green-600">High:</span>
+                            <span id="high-value" class="ml-1 font-bold">-</span>
+                        </div>
+                        <div class="metric-badge badge">
+                            <span class="text-xs text-green-600">Low:</span>
+                            <span id="low-value" class="ml-1 font-bold">-</span>
+                        </div>
+                        <div class="metric-badge badge">
+                            <span class="text-xs text-green-600">Close:</span>
+                            <span id="close-value" class="ml-1 font-bold">-</span>
+                        </div>
                         <div class="metric-badge badge">
                             <span class="text-xs text-green-600">LTP:</span>
                             <span id="ltp-value" class="ml-1 font-bold">-</span>
@@ -109,6 +125,10 @@
                         <div class="metric-badge badge">
                             <span class="text-xs text-green-600">Change:</span>
                             <span id="change-value" class="ml-1 font-bold">-</span>
+                        </div>
+                        <div class="metric-badge badge">
+                            <span class="text-xs text-green-600">%:</span>
+                            <span id="change-percent" class="ml-1 font-bold">-</span>
                         </div>
                         <div class="metric-badge badge">
                             <span class="text-xs text-green-600">Volume:</span>
@@ -141,8 +161,9 @@
         let currentTimeframe = '1m';
         let streamingEnabled = true;
         let lastCandle = null;
+        let dayStats = null;  // Store day's OHLCV data
 
-        // Load MCX symbols
+        // Load symbols
         const symbols = {{ symbols | tojson }};
 
         // Initialize symbol selector
@@ -350,6 +371,33 @@
                         volume: candle.volume
                     }));
 
+                    // Calculate day's stats (get today's data)
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const todayTime = Math.floor(today.getTime() / 1000);
+
+                    const todayCandles = chartData.filter(c => c.time >= todayTime);
+                    if (todayCandles.length > 0) {
+                        dayStats = {
+                            open: todayCandles[0].open,
+                            high: Math.max(...todayCandles.map(c => c.high)),
+                            low: Math.min(...todayCandles.map(c => c.low)),
+                            close: todayCandles[todayCandles.length - 1].close,
+                            volume: todayCandles.reduce((sum, c) => sum + (c.volume || 0), 0),
+                            prevClose: chartData[0].open  // Use first candle's open as prev close
+                        };
+                    } else if (chartData.length > 0) {
+                        // If no today's data, use latest available data
+                        dayStats = {
+                            open: chartData[0].open,
+                            high: Math.max(...chartData.map(c => c.high)),
+                            low: Math.min(...chartData.map(c => c.low)),
+                            close: chartData[chartData.length - 1].close,
+                            volume: chartData.reduce((sum, c) => sum + (c.volume || 0), 0),
+                            prevClose: chartData[0].open
+                        };
+                    }
+
                     // Update main series
                     if (currentSeries) {
                         currentSeries.setData(chartData);
@@ -511,15 +559,64 @@
 
         // Update metrics display
         function updateMetrics(candle) {
-            document.getElementById('ltp-value').textContent = candle.close.toFixed(2);
+            // Update LTP (Last Traded Price)
+            const ltp = candle.close;
+            document.getElementById('ltp-value').textContent = ltp.toFixed(2);
 
-            const change = candle.close - candle.open;
-            const changePercent = (change / candle.open * 100).toFixed(2);
-            const changeElement = document.getElementById('change-value');
-            changeElement.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent}%)`;
-            changeElement.style.color = change >= 0 ? '#10b981' : '#ef4444';
+            // Use day stats if available, otherwise use candle data
+            if (dayStats) {
+                // Update OHLC from day stats
+                document.getElementById('open-value').textContent = dayStats.open.toFixed(2);
+                document.getElementById('high-value').textContent = dayStats.high.toFixed(2);
+                document.getElementById('low-value').textContent = dayStats.low.toFixed(2);
+                document.getElementById('close-value').textContent = ltp.toFixed(2);  // Use latest price as close
 
-            document.getElementById('volume-value').textContent = formatVolume(candle.volume || 0);
+                // Calculate change from day's open or previous close
+                const basePrice = dayStats.prevClose || dayStats.open;
+                const change = ltp - basePrice;
+                const changePercent = (change / basePrice * 100).toFixed(2);
+
+                const changeElement = document.getElementById('change-value');
+                changeElement.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}`;
+                changeElement.style.color = change >= 0 ? '#10b981' : '#ef4444';
+
+                const changePercentElement = document.getElementById('change-percent');
+                changePercentElement.textContent = `${change >= 0 ? '+' : ''}${changePercent}%`;
+                changePercentElement.style.color = change >= 0 ? '#10b981' : '#ef4444';
+
+                // Update with latest high/low if current price exceeds
+                if (ltp > dayStats.high) {
+                    dayStats.high = ltp;
+                    document.getElementById('high-value').textContent = ltp.toFixed(2);
+                }
+                if (ltp < dayStats.low) {
+                    dayStats.low = ltp;
+                    document.getElementById('low-value').textContent = ltp.toFixed(2);
+                }
+
+                // Update cumulative volume
+                dayStats.volume += (candle.volume || 0);
+                document.getElementById('volume-value').textContent = formatVolume(dayStats.volume);
+            } else {
+                // Fallback to candle data if no day stats
+                document.getElementById('open-value').textContent = candle.open.toFixed(2);
+                document.getElementById('high-value').textContent = candle.high.toFixed(2);
+                document.getElementById('low-value').textContent = candle.low.toFixed(2);
+                document.getElementById('close-value').textContent = candle.close.toFixed(2);
+
+                const change = candle.close - candle.open;
+                const changePercent = (change / candle.open * 100).toFixed(2);
+
+                const changeElement = document.getElementById('change-value');
+                changeElement.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}`;
+                changeElement.style.color = change >= 0 ? '#10b981' : '#ef4444';
+
+                const changePercentElement = document.getElementById('change-percent');
+                changePercentElement.textContent = `${change >= 0 ? '+' : ''}${changePercent}%`;
+                changePercentElement.style.color = change >= 0 ? '#10b981' : '#ef4444';
+
+                document.getElementById('volume-value').textContent = formatVolume(candle.volume || 0);
+            }
         }
 
         // Format volume

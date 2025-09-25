@@ -6,14 +6,14 @@
 [![QuestDB](https://img.shields.io/badge/QuestDB-Time--Series-orange)](https://questdb.io/)
 [![OpenAlgo](https://img.shields.io/badge/OpenAlgo-Compatible-purple)](https://github.com/marketcalls/openalgo)
 
-OpenQuest is a high-performance, zero-configuration real-time data aggregation tool designed for OpenAlgo. It seamlessly streams MCX futures tick data into QuestDB and provides professional-grade TradingView charts with proper IST timezone support.
+OpenQuest is a high-performance, zero-configuration real-time data aggregation tool designed for OpenAlgo. It seamlessly streams tick data from all OpenAlgo-supported exchanges (NSE, BSE, NFO, BFO, BCD, MCX) into QuestDB and provides professional-grade TradingView charts with proper IST timezone support.
 
 ## 🚀 Features
 
 - **Zero Configuration**: Configure everything through the intuitive web UI
 - **Real-Time Streaming**: High-frequency LTP, Quote, and Depth data streams
-- **MCX Futures Support**: Automatic aggregation of all MCX futures symbols
-- **Professional Charts**: TradingView Lightweight Charts with IST timezone display
+- **Multi-Exchange Support**: Automatic aggregation for NSE, BSE, NFO, BFO, BCD, and MCX symbols
+- **Professional Charts**: TradingView Lightweight Charts with IST timezone display and day stats (OHLC, Volume, Change %)
 - **Time-Series Database**: QuestDB for ultra-fast tick data storage and retrieval
 - **Modern UI**: Supabase green/black theme with TailwindCSS and DaisyUI
 - **Live Metrics**: Real-time monitoring of tick rates, spreads, and connection status
@@ -111,14 +111,15 @@ OpenQuest uses QuestDB with the following optimized schema:
 | Column | Type | Description |
 |--------|------|-------------|
 | timestamp | TIMESTAMP | Time of tick (IST) |
-| symbol | SYMBOL | MCX futures symbol |
+| symbol | SYMBOL | Trading symbol |
 | ltp | DOUBLE | Last traded price |
+| volume | LONG | Last trade quantity |
 
 ### ticks_quote
 | Column | Type | Description |
 |--------|------|-------------|
 | timestamp | TIMESTAMP | Time of quote (IST) |
-| symbol | SYMBOL | MCX futures symbol |
+| symbol | SYMBOL | Trading symbol |
 | bid | DOUBLE | Best bid price |
 | ask | DOUBLE | Best ask price |
 | spread | DOUBLE | Bid-ask spread |
@@ -129,7 +130,7 @@ OpenQuest uses QuestDB with the following optimized schema:
 | Column | Type | Description |
 |--------|------|-------------|
 | timestamp | TIMESTAMP | Time of depth update (IST) |
-| symbol | SYMBOL | MCX futures symbol |
+| symbol | SYMBOL | Trading symbol |
 | level | INT | Orderbook level (0-4) |
 | bid | DOUBLE | Bid price at level |
 | ask | DOUBLE | Ask price at level |
@@ -160,10 +161,10 @@ OpenQuest uses QuestDB with the following optimized schema:
 ### Candles API Parameters
 
 ```
-GET /api/candles/GOLDTEN31DEC25FUT?timeframe=1m&limit=500
+GET /api/candles/RELIANCE?timeframe=1m&limit=500
 ```
 
-- **symbol**: MCX futures symbol (required)
+- **symbol**: Trading symbol (required) - supports all OpenAlgo exchanges
 - **timeframe**: 1m, 5m, 15m, 30m, 1h, 1d (default: 1m)
 - **limit**: Number of candles to return (default: 500, max: 1000)
 
@@ -197,7 +198,7 @@ curl http://127.0.0.1:5001/metrics
 
 3. **Test Chart Data**:
 ```bash
-curl http://127.0.0.1:5001/api/candles/GOLDTEN31DEC25FUT?timeframe=1m&limit=10
+curl http://127.0.0.1:5001/api/candles/RELIANCE?timeframe=1m&limit=10
 ```
 
 ## 🎨 UI Features
@@ -214,7 +215,8 @@ curl http://127.0.0.1:5001/api/candles/GOLDTEN31DEC25FUT?timeframe=1m&limit=10
 - IST timezone with proper display
 - Multiple timeframe support
 - Symbol selection dropdown
-- Volume indicators
+- Real-time day statistics (Open, High, Low, Close, LTP, Change, Change %, Volume)
+- Volume indicators with actual traded volumes
 - Crosshair with price/time display
 
 ### Metrics Panel
@@ -277,7 +279,7 @@ DROP TABLE IF EXISTS ticks_depth;
 
 2. **Check logs**:
 ```bash
-python app.py  # Run in debug mode to see detailed logs
+python app.py  # Check console output for detailed logs
 ```
 
 3. **Test WebSocket connection**:
@@ -307,6 +309,8 @@ ws.connect("ws://127.0.0.1:8765")
 - **Memory Usage**: < 100MB typical
 - **CPU Usage**: < 5% during normal operation
 - **Latency**: < 10ms from tick to storage
+- **Volume Aggregation**: Uses actual `last_trade_quantity` from WebSocket data
+- **Price Aggregation**: Based on LTP (Last Traded Price) for accurate OHLC candles
 
 ## 🤝 Contributing
 

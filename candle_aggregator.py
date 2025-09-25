@@ -119,7 +119,7 @@ class CandleAggregator:
                 max(ltp) as high,
                 min(ltp) as low,
                 last(ltp) as close,
-                count(*) as volume
+                sum(volume) as volume
             FROM ticks_ltp
             WHERE symbol = %s
                 AND timestamp >= %s
@@ -177,9 +177,9 @@ class CandleAggregator:
             # Get the most recent data from QuestDB
             # Use a subquery to get the latest ticks first
             query = """
-            SELECT timestamp, ltp
+            SELECT timestamp, ltp, volume
             FROM (
-                SELECT timestamp, ltp
+                SELECT timestamp, ltp, volume
                 FROM ticks_ltp
                 WHERE symbol = %s
                     AND ltp IS NOT NULL
@@ -220,7 +220,9 @@ class CandleAggregator:
                         # The timestamp is already correct - Python's timestamp() gives UTC
                         timestamp = int(row[0].timestamp())
                         bucket = (timestamp // bucket_seconds) * bucket_seconds
-                        candle_dict[bucket].append((timestamp, float(row[1])))
+                        price = float(row[1])
+                        volume = float(row[2]) if row[2] else 0
+                        candle_dict[bucket].append((timestamp, price, volume))
 
                 # Create candles from grouped ticks
                 candles = []
@@ -229,14 +231,15 @@ class CandleAggregator:
                     if tick_data:
                         # Sort ticks within bucket by timestamp
                         tick_data.sort(key=lambda x: x[0])
-                        prices = [price for _, price in tick_data]
+                        prices = [price for _, price, _ in tick_data]
+                        total_volume = sum(vol for _, _, vol in tick_data)
                         candles.append({
                             'time': bucket_time,
                             'open': prices[0],
                             'high': max(prices),
                             'low': min(prices),
                             'close': prices[-1],
-                            'volume': len(prices)
+                            'volume': total_volume  # Sum of actual traded volumes
                         })
 
                 return candles[-limit:] if len(candles) > limit else candles

@@ -60,15 +60,15 @@ metrics = {
     'connection_status': 'disconnected'
 }
 
-# Load MCX symbols
-def load_mcx_symbols():
-    symbols_file = os.path.join(os.path.dirname(__file__), 'docs', 'mcxsymbol.txt')
+# Load symbols from symbols/symbols.txt
+def load_symbols():
+    symbols_file = os.path.join(os.path.dirname(__file__), 'symbols', 'symbols.txt')
     if os.path.exists(symbols_file):
         with open(symbols_file, 'r') as f:
             return json.load(f)
     return []
 
-MCX_SYMBOLS = load_mcx_symbols()
+SYMBOLS = load_symbols()
 
 @app.route('/')
 def index():
@@ -76,7 +76,7 @@ def index():
     return render_template('index.html',
                          config=config,
                          metrics=metrics,
-                         symbols=MCX_SYMBOLS)
+                         symbols=SYMBOLS)
 
 @app.route('/config', methods=['GET', 'POST'])
 def config():
@@ -104,7 +104,7 @@ def get_metrics():
 def start_stream():
     data = request.json
     stream_type = data.get('stream_type', 'ltp')
-    symbols = data.get('symbols', MCX_SYMBOLS)
+    symbols = data.get('symbols', SYMBOLS)
 
     config = config_manager.get_config()
     if not config.get('api_key'):
@@ -177,9 +177,10 @@ def handle_websocket_data(data):
             # Data is already being streamed to charts via OpenAlgo WebSocket
             # No need for separate broadcasting
 
-            # Store in QuestDB
+            # Store in QuestDB with volume (last_trade_quantity)
             if 'ltp' in data and data['ltp'] is not None:
-                success = questdb_client.insert_ltp(symbol, data['ltp'])
+                volume = data.get('last_trade_quantity') or data.get('volume')
+                success = questdb_client.insert_ltp(symbol, data['ltp'], volume)
                 if not success:
                     app.logger.warning(f"Failed to store LTP for {symbol}")
 
@@ -218,13 +219,13 @@ def start_websocket_client(config):
         )
         stream_client.start()
 
-        # Subscribe to all enabled streams for all MCX symbols
+        # Subscribe to all enabled streams for all symbols
         if config.get('ltp_enabled'):
-            stream_client.subscribe_ltp(MCX_SYMBOLS)
+            stream_client.subscribe_ltp(SYMBOLS)
         if config.get('quote_enabled'):
-            stream_client.subscribe_quote(MCX_SYMBOLS)
+            stream_client.subscribe_quote(SYMBOLS)
         if config.get('depth_enabled'):
-            stream_client.subscribe_depth(MCX_SYMBOLS)
+            stream_client.subscribe_depth(SYMBOLS)
 
     thread = threading.Thread(target=run_ws, daemon=True)
     thread.start()
@@ -240,7 +241,7 @@ def health():
 
 @app.route('/chart')
 def chart():
-    return render_template('chart.html', symbols=MCX_SYMBOLS)
+    return render_template('chart.html', symbols=SYMBOLS)
 
 @app.route('/api/candles/<symbol>')
 def get_candles(symbol):
@@ -337,7 +338,7 @@ if __name__ == '__main__':
     # Run with SocketIO in production mode with logging
     socketio.run(
         app,
-        debug=False,  # Disable debug mode for production
+        debug=True,  # Disable debug mode for production
         port=5001,
         host='127.0.0.1',
         use_reloader=False,  # Disable auto-reloader

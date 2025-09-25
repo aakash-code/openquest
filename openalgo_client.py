@@ -67,20 +67,23 @@ class OpenAlgoStreamClient:
         """Process LTP updates"""
         try:
             # Handle nested data structure from WebSocket
-            # Format: {"type": "market_data", "mode": 1, "data": {"ltp": 1424.0}}
+            # Format: {"type": "market_data", "mode": 1, "data": {"ltp": 1424.0, "last_trade_quantity": 50}}
             if isinstance(data, dict):
                 # Check if data is nested
                 if 'data' in data and isinstance(data['data'], dict):
                     ltp_value = data['data'].get('ltp')
+                    last_trade_qty = data['data'].get('last_trade_quantity') or data['data'].get('ltq')
                     symbol = data.get('symbol') or data['data'].get('symbol')
                     exchange = data.get('exchange') or data['data'].get('exchange')
                 else:
                     # Fallback to direct access
                     ltp_value = data.get('ltp') or data.get('last_price') or data.get('price') or data.get('close')
+                    last_trade_qty = data.get('last_trade_quantity') or data.get('ltq')
                     symbol = data.get('symbol')
                     exchange = data.get('exchange')
             else:
                 ltp_value = None
+                last_trade_qty = None
                 symbol = None
                 exchange = None
 
@@ -89,6 +92,7 @@ class OpenAlgoStreamClient:
                 'symbol': symbol,
                 'exchange': exchange,
                 'ltp': ltp_value,
+                'last_trade_quantity': last_trade_qty,
                 'timestamp': data.get('timestamp', time.time())
             }
 
@@ -124,9 +128,13 @@ class OpenAlgoStreamClient:
                             quote_data.get('last') or
                             # If no LTP, use mid-point of bid-ask
                             ((quote_data.get('bid', 0) + quote_data.get('ask', 0)) / 2 if quote_data.get('bid') and quote_data.get('ask') else None))
+
+                # Get last trade quantity
+                last_trade_qty = quote_data.get('last_trade_quantity') or quote_data.get('ltq')
             else:
                 quote_data = {}
                 ltp_value = None
+                last_trade_qty = None
                 symbol = None
                 exchange = None
 
@@ -135,6 +143,11 @@ class OpenAlgoStreamClient:
                 'symbol': symbol,
                 'exchange': exchange,
                 'ltp': ltp_value,  # Add LTP to quote data
+                'last_trade_quantity': last_trade_qty,
+                'open': quote_data.get('open'),
+                'high': quote_data.get('high'),
+                'low': quote_data.get('low'),
+                'close': quote_data.get('close'),
                 'bid': quote_data.get('bid'),
                 'ask': quote_data.get('ask'),
                 'bid_qty': quote_data.get('bid_qty'),
