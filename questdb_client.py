@@ -19,6 +19,14 @@ class QuestDBClient:
 
     def connect(self):
         try:
+            # Close existing connections if any
+            if self.cursor:
+                self.cursor.close()
+                self.cursor = None
+            if self.connection:
+                self.connection.close()
+                self.connection = None
+
             self.connection = psycopg2.connect(
                 host=self.host,
                 port=self.port,

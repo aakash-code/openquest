@@ -235,14 +235,16 @@ class CandleAggregator:
                         tick_data.sort(key=lambda x: x[0])
                         prices = [price for _, price, _ in tick_data]
                         total_volume = sum(vol for _, _, vol in tick_data)
-                        candles.append({
-                            'time': bucket_time,
-                            'open': prices[0],
-                            'high': max(prices),
-                            'low': min(prices),
-                            'close': prices[-1],
-                            'volume': total_volume  # Sum of actual traded volumes
-                        })
+                        # Only add candle if all values are valid
+                        if prices and len(prices) > 0:
+                            candles.append({
+                                'time': bucket_time,
+                                'open': prices[0],
+                                'high': max(prices),
+                                'low': min(prices),
+                                'close': prices[-1],
+                                'volume': total_volume  # Sum of actual traded volumes
+                            })
 
                 return candles[-limit:] if len(candles) > limit else candles
 

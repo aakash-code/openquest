@@ -291,6 +291,9 @@ def chart():
 def get_latest_quote(symbol):
     """Get latest OHLCV data from ticks_quote table"""
     try:
+        # Always reconnect to avoid stale connections
+        questdb_client.connect()
+
         # Get the latest quote data from ticks_quote table
         query = """
         SELECT timestamp, ltp, open, high, low, close, volume, change, change_percent
@@ -324,6 +327,28 @@ def get_latest_quote(symbol):
 
     except Exception as e:
         app.logger.error(f"Error fetching quote for {symbol}: {e}")
+        # Try to reconnect and retry once
+        try:
+            questdb_client.connect()
+            questdb_client.cursor.execute(query, (symbol,))
+            result = questdb_client.cursor.fetchone()
+            if result:
+                return jsonify({
+                    'status': 'success',
+                    'symbol': symbol,
+                    'timestamp': result[0].isoformat() if result[0] else None,
+                    'ltp': float(result[1]) if result[1] else 0,
+                    'open': float(result[2]) if result[2] else 0,
+                    'high': float(result[3]) if result[3] else 0,
+                    'low': float(result[4]) if result[4] else 0,
+                    'close': float(result[5]) if result[5] else 0,
+                    'volume': int(result[6]) if result[6] else 0,
+                    'change': float(result[7]) if result[7] else 0,
+                    'change_percent': float(result[8]) if result[8] else 0
+                })
+        except Exception as retry_error:
+            app.logger.error(f"Retry also failed: {retry_error}")
+
         return jsonify({
             'status': 'error',
             'message': str(e)
