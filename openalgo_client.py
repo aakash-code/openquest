@@ -153,8 +153,11 @@ class OpenAlgoStreamClient:
                 'bid_qty': quote_data.get('bid_qty'),
                 'ask_qty': quote_data.get('ask_qty'),
                 'volume': quote_data.get('volume'),
+                'change': quote_data.get('change'),
+                'change_percent': quote_data.get('change_percent'),
+                'avg_trade_price': quote_data.get('avg_trade_price'),
                 'oi': quote_data.get('oi') or quote_data.get('open_interest'),
-                'timestamp': data.get('timestamp', time.time())
+                'timestamp': quote_data.get('timestamp') or data.get('timestamp', time.time())
             }
 
             # Log if we still don't have price data

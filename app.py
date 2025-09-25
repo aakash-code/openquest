@@ -188,6 +188,9 @@ def handle_websocket_data(data):
 
             # Store quote data with OHLC information
             if data.get('type') == 'quote':
+                # Log the received quote data for debugging
+                app.logger.debug(f"Quote data received for {symbol}: volume={data.get('volume')}, ltp={data.get('ltp')}")
+
                 # Calculate change if not provided
                 ltp = data.get('ltp')
                 open_price = data.get('open')
@@ -283,6 +286,48 @@ def health():
 @app.route('/chart')
 def chart():
     return render_template('chart.html', symbols=SYMBOLS)
+
+@app.route('/api/quote/<symbol>')
+def get_latest_quote(symbol):
+    """Get latest OHLCV data from ticks_quote table"""
+    try:
+        # Get the latest quote data from ticks_quote table
+        query = """
+        SELECT timestamp, ltp, open, high, low, close, volume, change, change_percent
+        FROM ticks_quote
+        WHERE symbol = %s
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+        questdb_client.cursor.execute(query, (symbol,))
+        result = questdb_client.cursor.fetchone()
+
+        if result:
+            return jsonify({
+                'status': 'success',
+                'symbol': symbol,
+                'timestamp': result[0].isoformat() if result[0] else None,
+                'ltp': float(result[1]) if result[1] else 0,
+                'open': float(result[2]) if result[2] else 0,
+                'high': float(result[3]) if result[3] else 0,
+                'low': float(result[4]) if result[4] else 0,
+                'close': float(result[5]) if result[5] else 0,
+                'volume': int(result[6]) if result[6] else 0,
+                'change': float(result[7]) if result[7] else 0,
+                'change_percent': float(result[8]) if result[8] else 0
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': f'No quote data available for {symbol}'
+            }), 404
+
+    except Exception as e:
+        app.logger.error(f"Error fetching quote for {symbol}: {e}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
 
 @app.route('/api/candles/<symbol>')
 def get_candles(symbol):

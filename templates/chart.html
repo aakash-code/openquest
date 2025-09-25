@@ -351,10 +351,53 @@
             }
         }
 
+        // Load latest quote data from ticks_quote table
+        async function loadQuoteData(symbol) {
+            try {
+                const response = await fetch(`/api/quote/${symbol}`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    // Update OHLCV display with data from ticks_quote
+                    document.getElementById('open-value').textContent = data.open.toFixed(2);
+                    document.getElementById('high-value').textContent = data.high.toFixed(2);
+                    document.getElementById('low-value').textContent = data.low.toFixed(2);
+                    document.getElementById('close-value').textContent = data.close.toFixed(2);
+                    document.getElementById('ltp-value').textContent = data.ltp.toFixed(2);
+                    document.getElementById('volume-value').textContent = formatVolume(data.volume);
+
+                    // Update change and change percent
+                    const changeElement = document.getElementById('change-value');
+                    changeElement.textContent = `${data.change >= 0 ? '+' : ''}${data.change.toFixed(2)}`;
+                    changeElement.style.color = data.change >= 0 ? '#10b981' : '#ef4444';
+
+                    const changePercentElement = document.getElementById('change-percent');
+                    changePercentElement.textContent = `${data.change_percent >= 0 ? '+' : ''}${data.change_percent.toFixed(2)}%`;
+                    changePercentElement.style.color = data.change_percent >= 0 ? '#10b981' : '#ef4444';
+
+                    // Store quote data for reference
+                    dayStats = {
+                        open: data.open,
+                        high: data.high,
+                        low: data.low,
+                        close: data.close,
+                        volume: data.volume,
+                        prevClose: data.open
+                    };
+                }
+            } catch (error) {
+                console.error('Error fetching quote data:', error);
+            }
+        }
+
         // Load chart data
         async function loadChartData(symbol, timeframe) {
             try {
                 console.log(`Loading chart data for ${symbol} with timeframe ${timeframe}`);
+
+                // First load quote data from ticks_quote table
+                await loadQuoteData(symbol);
+
                 const response = await fetch(`/api/candles/${symbol}?timeframe=${timeframe}&limit=500`);
                 const data = await response.json();
 
@@ -378,22 +421,28 @@
 
                     const todayCandles = chartData.filter(c => c.time >= todayTime);
                     if (todayCandles.length > 0) {
+                        // Preserve volume from quote data if it exists (it's already day's total, don't aggregate)
+                        const volumeFromQuote = dayStats ? dayStats.volume : null;
                         dayStats = {
                             open: todayCandles[0].open,
                             high: Math.max(...todayCandles.map(c => c.high)),
                             low: Math.min(...todayCandles.map(c => c.low)),
                             close: todayCandles[todayCandles.length - 1].close,
-                            volume: todayCandles.reduce((sum, c) => sum + (c.volume || 0), 0),
+                            // Use volume from quote data (already day's total from ticks_quote table)
+                            volume: volumeFromQuote || 0,
                             prevClose: chartData[0].open  // Use first candle's open as prev close
                         };
                     } else if (chartData.length > 0) {
                         // If no today's data, use latest available data
+                        // Preserve volume from quote data if it exists (it's already day's total)
+                        const volumeFromQuote = dayStats ? dayStats.volume : null;
                         dayStats = {
                             open: chartData[0].open,
                             high: Math.max(...chartData.map(c => c.high)),
                             low: Math.min(...chartData.map(c => c.low)),
                             close: chartData[chartData.length - 1].close,
-                            volume: chartData.reduce((sum, c) => sum + (c.volume || 0), 0),
+                            // Use volume from quote data (already day's total from ticks_quote table)
+                            volume: volumeFromQuote || 0,
                             prevClose: chartData[0].open
                         };
                     }
@@ -456,6 +505,9 @@
         // Load latest candle data
         async function loadLatestCandle(symbol, timeframe) {
             try {
+                // Also refresh quote data from ticks_quote table
+                await loadQuoteData(symbol);
+
                 const response = await fetch(`/api/candles/${symbol}?timeframe=${timeframe}&limit=50`);
                 const data = await response.json();
 
@@ -489,12 +541,14 @@
 
                     const todayCandles = data.candles.filter(c => c.time >= todayTime);
                     if (todayCandles.length > 0) {
+                        // Preserve the volume from quote data - DON'T overwrite it with candle aggregation
+                        const preservedVolume = dayStats && dayStats.volume ? dayStats.volume : 0;
                         dayStats = {
                             open: todayCandles[0].open,
                             high: Math.max(...todayCandles.map(c => c.high)),
                             low: Math.min(...todayCandles.map(c => c.low)),
                             close: todayCandles[todayCandles.length - 1].close,
-                            volume: todayCandles.reduce((sum, c) => sum + (c.volume || 0), 0),
+                            volume: preservedVolume,  // Keep the day's total volume from ticks_quote
                             prevClose: data.candles[0].open
                         };
                     }
@@ -526,17 +580,26 @@
                 value: candle.close
             });
 
-            // Update volume
+            // Update volume chart (but not the display since we get that from quote data)
             if (volumeSeries) {
+                // Use dayStats volume for display if available
+                const displayVolume = dayStats && dayStats.volume ? dayStats.volume : candle.volume;
                 volumeSeries.update({
                     time: candle.time,
-                    value: candle.volume,
+                    value: displayVolume,
                     color: candle.close >= candle.open ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'
                 });
             }
 
             lastCandle = candle;
-            updateMetrics(candle);
+            // Don't let candle volume overwrite quote volume in dayStats
+            if (dayStats && dayStats.volume) {
+                const preservedVolume = dayStats.volume;
+                updateMetrics(candle);
+                dayStats.volume = preservedVolume; // Restore the correct volume from quote
+            } else {
+                updateMetrics(candle);
+            }
             document.getElementById('last-update').textContent = new Date().toLocaleTimeString('en-IN', {
                 timeZone: 'Asia/Kolkata',
                 hour12: true
