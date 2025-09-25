@@ -285,7 +285,12 @@ def health():
 
 @app.route('/chart')
 def chart():
-    return render_template('chart.html', symbols=SYMBOLS)
+    return render_template('chart.html')
+
+@app.route('/api/symbols')
+def get_symbols():
+    """API endpoint to get symbols list"""
+    return jsonify(SYMBOLS)
 
 @app.route('/api/quote/<symbol>')
 def get_latest_quote(symbol):

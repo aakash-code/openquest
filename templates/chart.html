@@ -164,7 +164,7 @@
         let dayStats = null;  // Store day's OHLCV data
 
         // Load symbols
-        const symbols = {{ symbols | tojson }};
+        let symbols = [];
 
         // Initialize symbol selector
         function initSymbolSelector() {
@@ -557,7 +557,7 @@
                 if (currentSymbol && streamingEnabled) {
                     loadLatestCandle(currentSymbol, currentTimeframe);
                 }
-            }, currentTimeframe === '1m' ? 2000 : 10000);
+            }, currentTimeframe === '1m' ? 1000 : 10000);
         }
 
         // Load latest candle data
@@ -848,15 +848,35 @@
             streamingEnabled = e.target.checked;
         });
 
-        // Initialize
-        initSymbolSelector();
-        initChart();
-        connectWebSocket();
+        // Load symbols from API and initialize
+        async function loadSymbols() {
+            try {
+                const response = await fetch('/api/symbols');
+                symbols = await response.json();
+                console.log('Loaded', symbols.length, 'symbols');
+            } catch (error) {
+                console.error('Failed to load symbols:', error);
+                // Fallback symbols if API fails
+                symbols = [
+                    {"exchange": "NSE", "symbol": "RELIANCE"},
+                    {"exchange": "NSE", "symbol": "TCS"},
+                    {"exchange": "NSE", "symbol": "INFY"}
+                ];
+            }
 
-        // Load initial data
-        if (currentSymbol) {
-            loadChartData(currentSymbol, currentTimeframe);
+            // Initialize after symbols are loaded
+            initSymbolSelector();
+            initChart();
+            connectWebSocket();
+
+            // Load initial data
+            if (currentSymbol) {
+                loadChartData(currentSymbol, currentTimeframe);
+            }
         }
+
+        // Start the application
+        loadSymbols();
     </script>
 </body>
 </html>
