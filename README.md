@@ -14,6 +14,14 @@ OpenQuest is a high-performance, zero-configuration real-time data aggregation t
 - **Real-Time Streaming**: High-frequency LTP, Quote, and Depth data streams
 - **Multi-Exchange Support**: Automatic aggregation for NSE, BSE, NFO, BFO, BCD, and MCX symbols
 - **Professional Charts**: TradingView Lightweight Charts with IST timezone display and day stats (OHLC, Volume, Change %)
+- **📊 Options Market Profile** *(NEW)*: Advanced OI analysis for F&O instruments
+  - Dynamic symbol/expiry selection for NIFTY, BANKNIFTY, FINNIFTY, and F&O stocks
+  - Real-time Open Interest tracking with ±20 strikes from ATM
+  - Daily OI changes to identify institutional flow
+  - Three-column layout: Futures Chart + Current OI + OI Changes
+  - Support/Resistance levels from OI concentrations
+  - Put-Call Ratio (PCR) calculation
+  - Auto-refresh every 5 minutes during market hours
 - **Time-Series Database**: QuestDB for ultra-fast tick data storage and retrieval
 - **Modern UI**: Supabase green/black theme with TailwindCSS and DaisyUI
 - **Live Metrics**: Real-time monitoring of tick rates, spreads, and connection status
@@ -102,6 +110,21 @@ Navigate to the **Charts** tab to view real-time TradingView charts with:
 - IST timezone display
 - Symbol selection dropdown
 - Professional trading indicators
+
+### 6. Access Market Profile (Options OI Analysis)
+
+Navigate to: `http://127.0.0.1:5001/market-profile`
+
+The Market Profile provides comprehensive Options Open Interest analysis:
+1. **Select Symbol**: Choose from NIFTY, BANKNIFTY, FINNIFTY, or F&O stocks
+2. **Select Expiry**: Pick from available expiry dates (weekly for indices, monthly for stocks)
+3. **Fetch OI Data**: Click to fetch real-time Open Interest from OpenAlgo
+4. **Analyze**: View three synchronized panels:
+   - **Futures Chart** (5m, 7 days) - Price action context
+   - **Current OI Levels** - Support/Resistance from OI clusters
+   - **Daily OI Changes** - Institutional flow tracking
+
+📖 **Detailed Guide**: See [Market Profile Documentation](docs/MARKET_PROFILE.md) for complete usage instructions.
 
 ## 📊 Database Schema
 
