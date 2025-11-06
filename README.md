@@ -38,20 +38,62 @@ OpenQuest is a high-performance, zero-configuration real-time data aggregation t
 
 ## 🛠️ Installation
 
-### 1. Clone the Repository
+### Quick Install (Recommended)
+
+**Linux / macOS:**
+```bash
+git clone https://github.com/marketcalls/openquest.git
+cd openquest
+chmod +x install.sh
+./install.sh
+```
+
+**Windows:**
+```batch
+git clone https://github.com/marketcalls/openquest.git
+cd openquest
+install.bat
+```
+
+The installation script will:
+- Create a Python virtual environment
+- Install all dependencies
+- Set up necessary directories
+- Verify QuestDB connection
+
+📖 **Detailed Guide**: See [INSTALLATION.md](INSTALLATION.md) for complete installation instructions and troubleshooting.
+
+### Manual Installation
+
+If you prefer manual installation:
+
+#### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/marketcalls/openquest.git
 cd openquest
 ```
 
-### 2. Install Dependencies
+#### 2. Create Virtual Environment
 
 ```bash
+# Linux/macOS
+python3 -m venv venv
+source venv/bin/activate
+
+# Windows
+python -m venv venv
+venv\Scripts\activate
+```
+
+#### 3. Install Dependencies
+
+```bash
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 3. Start QuestDB
+#### 4. Start QuestDB
 
 If you don't have QuestDB running, start it using Docker:
 
@@ -77,7 +119,24 @@ Ensure OpenAlgo is running and accessible:
 
 ### 1. Run the Application
 
+**Using start scripts (recommended):**
+
 ```bash
+# Linux/macOS
+./start.sh
+
+# Windows
+start.bat
+```
+
+**Or manually:**
+
+```bash
+# Activate virtual environment first
+source venv/bin/activate  # Linux/macOS
+venv\Scripts\activate     # Windows
+
+# Start application
 python app.py
 ```
 
@@ -87,6 +146,12 @@ Open your browser and navigate to:
 ```
 http://127.0.0.1:5001
 ```
+
+The start script will automatically:
+- Activate the virtual environment
+- Check if QuestDB is running
+- Start OpenQuest
+- Display access URLs
 
 ### 3. Configure OpenAlgo Connection
 
